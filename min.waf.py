@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 
-import time
 import click
-import shlex
-import sys
 import datetime
 import numpy as np
-
+import shlex
+import subprocess
+import sys
+import time
+import re
 
 class ExpiringList:
     def __init__(self, expiration_time: int):
@@ -30,14 +31,19 @@ requests_by_ip: dict[str, dict] = {}
 times_by_url: dict[str, ExpiringList] = {}
 status_by_ip: dict[str, ExpiringList] = {}
 
-column_ip: int = 0
-column_upstream_response_time: int = 14
-column_connection: int = 15
-column_connection_index: int = 16
-column_time: int = 2
-column_domain: int = 1
-column_request: int = 4
-column_status: int = 5
+config = {
+    'columns': {
+        'remote_addr': -1,
+        'host': -1,
+        'time_local': -1,
+        'request': -1,
+        'status': -1,
+        'upstream_response_time': -1,
+        'connection': -1,
+        'connection_requests': -1,
+    }
+}
+
 
 time_frame: int = 300  # seconds
 lines_to_print: int = 10
@@ -48,12 +54,59 @@ refresh_time: int = 1
 
 start_time = time.time()
 refresh_ts = 0
+log_file_path = "/var/log/nginx/access.log"
 
 
 @click.command()
 def tail():
     for line in sys.stdin:
         parse_print(line)
+
+
+def init():
+    nginx_config = subprocess.run(['nginx', '-T'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8')
+    output = re.search('access_log\s+([^\s]+)\s+([^\s]+)\s*;', nginx_config, flags=re.IGNORECASE)
+    if output is None:
+        print("Could not find access_log directive in nginx config")
+        sys.exit(1)
+    if output is not None:
+        log_file_path = output.group(1)
+        log_file_format = output.group(2)
+    output = re.search(f'log_format\s+{log_file_format}([^;]+);', nginx_config, flags=re.IGNORECASE | re.DOTALL)
+    if output is None:
+        print(f"Could not find log_format {log_file_format} in nginx config")
+        sys.exit(1)
+    log_format = ''
+    for line in output.group(1).splitlines():
+        line = line.strip()
+        if line[0] == '\'' and line.endswith('\''):
+            line = line[1:-1]
+        log_format += line + ' '
+    log_format = re.sub(r'\s+', ' ', log_format).strip()
+    columns = shlex.split(log_format)
+    offset = 0
+    for i, col in enumerate(columns):
+        if re.search(r'^\$remote_addr$', col):
+            config['columns']['remote_addr'] = i + offset
+        elif re.search(r'^\$host$', col):
+            config['columns']['host'] = i + offset
+        elif re.search(r'\$time_local', col):
+            config['columns']['time_local'] = i + offset
+            offset += 1  # time_local is two columns in the log
+        elif re.search(r'^\$request$', col):
+            config['columns']['request'] = i + offset
+        elif re.search(r'^\$status$', col):
+            config['columns']['status'] = i + offset
+        elif re.search(r'^\$upstream_response_time$', col):
+            config['columns']['upstream_response_time'] = i + offset
+        elif re.search(r'^\$connection$', col):
+            config['columns']['connection'] = i + offset
+        elif re.search(r'^\$connection_requests$', col):
+            config['columns']['connection_requests'] = i + offset
+    for config_line in config['columns']:
+        if config['columns'][config_line] == -1:
+            print(f"Could not find column for {config_line} in log_format")
+            sys.exit(1)
 
 
 def print_stats():
@@ -185,10 +238,8 @@ def parse_print(line):
     if not ip in status_by_ip:
         status_by_ip[ip] = ExpiringList(expiration_time=time_frame)
     status_by_ip[ip].append(float(http_status))
-    if (time.time() - refresh_ts) > refresh_time:
-        print_stats()
-        refresh_ts = time.time()
 
 
 if __name__ == '__main__':
-    tail()
+    init()
+    tail_f(log_file_path)
