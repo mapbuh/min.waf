@@ -47,10 +47,11 @@ config = {
 
 time_frame: int = 300  # seconds
 lines_to_print: int = 10
-column_1_width: int = 30
+column_1_width: int = 45
 column_2_width: int = 15
 column_3_width: int = 17
 refresh_time: int = 1
+ban_time: int = 60  # seconds
 
 start_time = time.time()
 refresh_ts = 0
@@ -107,7 +108,35 @@ def init():
         if config['columns'][config_line] == -1:
             print(f"Could not find column for {config_line} in log_format")
             sys.exit(1)
+    iptables_init()
 
+
+def iptables_init():
+    subprocess.run(['iptables', '-D', 'INPUT', '-j', 'MINWAF'])
+    subprocess.run(['iptables', '-F', 'MINWAF'])
+    subprocess.run(['iptables', '-X', 'MINWAF'])
+    subprocess.run(['iptables', '-N', 'MINWAF'])
+    subprocess.run(['iptables', '-I', 'INPUT', '-j', 'MINWAF'])
+
+    subprocess.run(['ip6tables', '-D', 'INPUT', '-j', 'MINWAF'])
+    subprocess.run(['ip6tables', '-F', 'MINWAF'])
+    subprocess.run(['ip6tables', '-X', 'MINWAF'])
+    subprocess.run(['ip6tables', '-N', 'MINWAF'])
+    subprocess.run(['ip6tables', '-I', 'INPUT', '-j', 'MINWAF'])
+
+banned_ips = {}
+def iptables_ban(ip_address: str):
+    if ip_address in banned_ips:
+        banned_ips[ip_address] = time.time()
+        return
+    banned_ips[ip_address] = time.time()
+    if ':' in ip_address:
+        subprocess.run(['ip6tables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
+        subprocess.run(['ip6tables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
+        return
+    subprocess.run(['iptables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
+    subprocess.run(['iptables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
+    
 
 def print_stats():
     current_time = time.time()
@@ -141,7 +170,7 @@ def print_stats():
     counter = 0
     for ip, stats in sorted(ip_stats.items(), key=lambda item: item[1]['total_time'], reverse=True):
 #    for ip, stats in ip_stats.items():
-        if stats['request_count'] < 2:
+        if stats['request_count'] < 10:
             continue
         #if stats['total_time'] < 1:
         #    continue
@@ -167,18 +196,22 @@ def print_stats():
         #if stats['total_time'] < 1:
         #    continue
         counter += 1
-        if counter > lines_to_print:
+        if counter > lines_to_print * 2:
             break
         print(f"{url:<100.100} Total: {stats['total_time']:>6.2f}, Avg: {stats['avg_time']:>6.2f}s 95p: {stats['p95_time']:>6.2f} {stats['request_count']:>6}rq")
 
     print()
     status_by_ip_stats = {}
     good_statuses: list[int] = [200, 499]
+    ignore_statuses: list[int] = [302, 303, 304, 307, 308]
+    # wonder about 301, all wp related return 301
     for ip, data in status_by_ip.items():
         statuses: list[float] = data.get_values()
         if ip not in status_by_ip_stats:
             status_by_ip_stats[ip] = {"count": 0, "good": 0, "bad": 0, "bad_perc": 0.0, "good_perc": 0.0}
         for status in statuses:
+            if int(status) in ignore_statuses:
+                continue
             if not status in status_by_ip_stats[ip]:
                 status_by_ip_stats[ip][status] = 0
             status_by_ip_stats[ip][status] = status_by_ip_stats[ip][status] + 1
@@ -190,16 +223,34 @@ def print_stats():
             status_by_ip_stats[ip]["good_perc"] = (status_by_ip_stats[ip]["good"] / status_by_ip_stats[ip]["count"]) * 100
             status_by_ip_stats[ip]["bad_perc"] = (status_by_ip_stats[ip]["bad"] / status_by_ip_stats[ip]["count"]) * 100
     counter = 0
-    for ip, data in sorted(status_by_ip_stats.items(), key=lambda item: item[1]['bad_perc'], reverse=True):
+    for ip, data in sorted(status_by_ip_stats.items(), key=lambda item: (item[1]['bad_perc'], item[1]['count']), reverse=True):
         #for ip, data in status_by_ip_stats[ip].items():
-        counter += 1
         if counter > lines_to_print:
             break
         if data['count'] < 10:
             continue
-        print(f"{ip:<20.20}: All: {data['count']:>10}, Good: {data['good_perc']:>8.2f}%, Bad: {data['bad_perc']:>8.2f}%")
+        # 50% is not good, because sometimes there is redirect and then 404
+        if data['bad_perc'] > 45.0:
+            iptables_ban(ip)
+        counter += 1
+        print(f"{ip:<{column_1_width}.{column_1_width}}: All: {data['count']:>10}, Good: {data['good_perc']:>8.2f}%, Bad: {data['bad_perc']:>8.2f}%")
+
+    iptables_unban_expired()
+    print()
+    print(f"Banned IPs: {banned_ips}")
 
 
+def iptables_unban_expired():
+    current_time = time.time()
+    for ip in list(banned_ips.keys()):
+        if current_time - banned_ips[ip] > ban_time:
+            del banned_ips[ip]
+            if ':' in ip:
+                subprocess.run(['ip6tables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
+                subprocess.run(['ip6tables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
+            else:
+                subprocess.run(['iptables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
+                subprocess.run(['iptables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
 
 
 def parse_url(domain, request):
@@ -212,16 +263,36 @@ def parse_url(domain, request):
     return domain + path
 
 
-def parse_print(line):
+def tail_f(filename):
+    refresh_ts = time.time()
+    with open(filename, 'r') as f:
+        # Go to the end of the file
+        f.seek(0, 2)
+        while True:
+            line = f.readline()
+            if not line:
+                time.sleep(0.1)  # Sleep briefly
+                continue
+            parse_line(line)
+            if (time.time() - refresh_ts) > refresh_time:
+                print_stats()
+                refresh_ts = time.time()
+
+
+def parse_line(line):
     global refresh_ts
-    columns = shlex.split(line)
-    ip = columns[column_ip]
-    upstream_response_time = columns[column_upstream_response_time]
-    connection = columns[column_connection]
-    connection_index = columns[column_connection_index]
-    req_ts = columns[column_time] + ' ' + columns[column_time + 1]
-    http_status = columns[column_status]
-    req = parse_url(columns[column_domain], columns[column_request])
+    try:
+        columns = shlex.split(line)
+    except ValueError:
+        # cannot parse line
+        return
+    ip = columns[config['columns']['remote_addr']]
+    upstream_response_time = columns[config['columns']['upstream_response_time']]
+    connection = columns[config['columns']['connection']]
+    connection_index = columns[config['columns']['connection_requests']]
+    req_ts = columns[config['columns']['time_local']] + ' ' + columns[config['columns']['time_local'] + 1]
+    http_status = columns[config['columns']['status']]
+    req = parse_url(columns[config['columns']['host']], columns[config['columns']['request']])
     if upstream_response_time == '-':
         upstream_response_time = 0.1
     if not ip in requests_by_ip:
