@@ -27,7 +27,12 @@ class ExpiringList:
         self.expire(current_time)
         return [val for ts, val in self.data]
 
-requests_by_ip: dict[str, dict] = {}
+    def len(self) -> int:
+        current_time = time.time()
+        self.expire(current_time)
+        return len(self.data)
+
+requests_by_ip: dict[str, ExpiringList] = {}
 times_by_url: dict[str, ExpiringList] = {}
 status_by_ip: dict[str, ExpiringList] = {}
 
@@ -39,13 +44,11 @@ config = {
         'request': -1,
         'status': -1,
         'upstream_response_time': -1,
-        'connection': -1,
-        'connection_requests': -1,
     }
 }
 
 
-time_frame: int = 300  # seconds
+time_frame: int = 60  # seconds
 lines_to_print: int = 10
 column_1_width: int = 45
 column_2_width: int = 15
@@ -57,11 +60,10 @@ start_time = time.time()
 refresh_ts = 0
 log_file_path = "/var/log/nginx/access.log"
 
+ip_stats: dict[str, dict] = {}
+times_by_url_stats: dict[str, dict] = {}
+status_by_ip_stats: dict[str, dict] = {}
 
-@click.command()
-def tail():
-    for line in sys.stdin:
-        parse_print(line)
 
 
 def init():
@@ -100,10 +102,6 @@ def init():
             config['columns']['status'] = i + offset
         elif re.search(r'^\$upstream_response_time$', col):
             config['columns']['upstream_response_time'] = i + offset
-        elif re.search(r'^\$connection$', col):
-            config['columns']['connection'] = i + offset
-        elif re.search(r'^\$connection_requests$', col):
-            config['columns']['connection_requests'] = i + offset
     for config_line in config['columns']:
         if config['columns'][config_line] == -1:
             print(f"Could not find column for {config_line} in log_format")
@@ -144,27 +142,6 @@ def print_stats():
     print(f"Running time: {time.time() - start_time:.2f} seconds      Time frame: {time_frame} seconds")
     print(f"{'IP Address':<{column_1_width}} {'Upstream Time':<{column_2_width}} {'Requests':<{column_3_width}}")
     print("=" * 100)
-    ip_stats = {}
-    for ip in list(requests_by_ip.keys()):
-        data = requests_by_ip[ip]
-        for connection in list(data.keys()):
-            cdata = data[connection]
-            upstream_time = 0.0
-            for ind in list(sorted(cdata.keys())):
-                ts = cdata[ind]['ts']
-                if current_time - ts > time_frame:
-                    del cdata[ind]
-                    continue
-                if ip not in ip_stats:
-                    ip_stats[ip] = {'total_time': 0.0, 'request_count': 0, 'first_ts': ts}
-                # suspected bug in nginx, time seem cumulative per connection but sometimes resets
-                if cdata[ind]['ts'] < upstream_time:
-                    ip_stats[ip]['total_time'] += upstream_time
-                upstream_time = cdata[ind]['upstream_response_time']
-                ip_stats[ip]['request_count'] += 1
-            # only take the last request time for this connection
-            if ip in ip_stats:
-                ip_stats[ip]['total_time'] += upstream_time
 
     # sort by total_time
     counter = 0
@@ -177,20 +154,9 @@ def print_stats():
         counter += 1
         if counter > lines_to_print:
             break
-        print(f"{ip:<{column_1_width}.{column_1_width}} {stats['total_time']:<{column_2_width}.3f} {stats['request_count']:5d}rq in {(current_time - stats['first_ts']):3.0f}s {100 * stats['total_time'] / (current_time - stats['first_ts']):.2f}% ")
+        print(f"{ip:<{column_1_width}.{column_1_width}} {stats['total_time']:<{column_2_width}.3f} {stats['request_count']:5d}rq")
 
     print()
-    times_by_url_stats = {}
-    for url, times in times_by_url.items():
-        values = times.get_values()
-        if len(values) == 0:
-            continue
-        if url not in times_by_url_stats:
-            times_by_url_stats[url] = {}
-        times_by_url_stats[url]['avg_time'] = sum(values) / len(values)
-        times_by_url_stats[url]['request_count'] = len(values)
-        times_by_url_stats[url]['total_time'] = sum(values)
-        times_by_url_stats[url]['p95_time'] = np.percentile(values, 95)
     counter = 0
     for url, stats in sorted(times_by_url_stats.items(), key=lambda item: item[1]['total_time'], reverse=True):
         #if stats['total_time'] < 1:
@@ -201,27 +167,6 @@ def print_stats():
         print(f"{url:<100.100} Total: {stats['total_time']:>6.2f}, Avg: {stats['avg_time']:>6.2f}s 95p: {stats['p95_time']:>6.2f} {stats['request_count']:>6}rq")
 
     print()
-    status_by_ip_stats = {}
-    good_statuses: list[int] = [200, 499]
-    ignore_statuses: list[int] = [302, 303, 304, 307, 308]
-    # wonder about 301, all wp related return 301
-    for ip, data in status_by_ip.items():
-        statuses: list[float] = data.get_values()
-        if ip not in status_by_ip_stats:
-            status_by_ip_stats[ip] = {"count": 0, "good": 0, "bad": 0, "bad_perc": 0.0, "good_perc": 0.0}
-        for status in statuses:
-            if int(status) in ignore_statuses:
-                continue
-            if not status in status_by_ip_stats[ip]:
-                status_by_ip_stats[ip][status] = 0
-            status_by_ip_stats[ip][status] = status_by_ip_stats[ip][status] + 1
-            status_by_ip_stats[ip]["count"] += 1
-            if status in good_statuses:
-                status_by_ip_stats[ip]["good"] += 1
-            else:
-                status_by_ip_stats[ip]["bad"] += 1
-            status_by_ip_stats[ip]["good_perc"] = (status_by_ip_stats[ip]["good"] / status_by_ip_stats[ip]["count"]) * 100
-            status_by_ip_stats[ip]["bad_perc"] = (status_by_ip_stats[ip]["bad"] / status_by_ip_stats[ip]["count"]) * 100
     counter = 0
     for ip, data in sorted(status_by_ip_stats.items(), key=lambda item: (item[1]['bad_perc'], item[1]['count']), reverse=True):
         #for ip, data in status_by_ip_stats[ip].items():
@@ -237,7 +182,9 @@ def print_stats():
 
     iptables_unban_expired()
     print()
-    print(f"Banned IPs: {banned_ips}")
+    for ip in banned_ips:
+        print(f"{ip} is banned for another {ban_time - (current_time - banned_ips[ip]):.0f} seconds", end=' | ')
+    print()
 
 
 def iptables_unban_expired():
@@ -288,27 +235,53 @@ def parse_line(line):
         return
     ip = columns[config['columns']['remote_addr']]
     upstream_response_time = columns[config['columns']['upstream_response_time']]
-    connection = columns[config['columns']['connection']]
-    connection_index = columns[config['columns']['connection_requests']]
     req_ts = columns[config['columns']['time_local']] + ' ' + columns[config['columns']['time_local'] + 1]
+    req_ts = datetime.datetime.strptime(req_ts, "[%d/%b/%Y:%H:%M:%S %z]").timestamp()
     http_status = columns[config['columns']['status']]
     req = parse_url(columns[config['columns']['host']], columns[config['columns']['request']])
     if upstream_response_time == '-':
         upstream_response_time = 0.1
     if not ip in requests_by_ip:
-        requests_by_ip[ip] = {}
-    if not connection in requests_by_ip[ip]:
-        requests_by_ip[ip][connection] = {}
-    requests_by_ip[ip][connection][int(connection_index)] = {
-        'upstream_response_time': float(upstream_response_time),
-        'ts': datetime.datetime.strptime(req_ts, "[%d/%b/%Y:%H:%M:%S %z]").timestamp()
-    }
+        requests_by_ip[ip] = ExpiringList(expiration_time=time_frame)
+    requests_by_ip[ip].append(upstream_response_time)
     if not req in times_by_url:
         times_by_url[req] = ExpiringList(expiration_time=time_frame)
     times_by_url[req].append(float(upstream_response_time))
     if not ip in status_by_ip:
         status_by_ip[ip] = ExpiringList(expiration_time=time_frame)
     status_by_ip[ip].append(float(http_status))
+
+    requests = requests_by_ip[ip].get_values()
+    ip_stats[ip] = {'total_time': 0.0, 'request_count': 0}
+    for upstream_time in requests:
+        ip_stats[ip]['request_count'] += 1
+        ip_stats[ip]['total_time'] += float(upstream_time)
+
+    values = times_by_url[req].get_values()
+    times_by_url_stats[req] = {}
+    times_by_url_stats[req]['avg_time'] = sum(values) / len(values)
+    times_by_url_stats[req]['request_count'] = len(values)
+    times_by_url_stats[req]['total_time'] = sum(values)
+    times_by_url_stats[req]['p95_time'] = np.percentile(values, 95)
+
+    good_statuses: list[int] = [200, 499]
+    ignore_statuses: list[int] = [302, 303, 304, 307, 308]
+    # wonder about 301, all wp related return 301
+    values = status_by_ip[ip].get_values()
+    status_by_ip_stats[ip] = {"count": 0, "good": 0, "bad": 0, "bad_perc": 0.0, "good_perc": 0.0}
+    for status in values:
+        if int(status) in ignore_statuses:
+            continue
+        if not status in status_by_ip_stats[ip]:
+            status_by_ip_stats[ip][status] = 0
+        status_by_ip_stats[ip][status] = status_by_ip_stats[ip][status] + 1
+        status_by_ip_stats[ip]["count"] += 1
+        if status in good_statuses:
+            status_by_ip_stats[ip]["good"] += 1
+        else:
+            status_by_ip_stats[ip]["bad"] += 1
+        status_by_ip_stats[ip]["good_perc"] = (status_by_ip_stats[ip]["good"] / status_by_ip_stats[ip]["count"]) * 100
+        status_by_ip_stats[ip]["bad_perc"] = (status_by_ip_stats[ip]["bad"] / status_by_ip_stats[ip]["count"]) * 100
 
 
 if __name__ == '__main__':
