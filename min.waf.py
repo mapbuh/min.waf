@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import click
 import datetime
@@ -9,36 +9,16 @@ import shlex
 import subprocess
 import sys
 import time
+import atexit
 
-class ExpiringList:
-    def __init__(self, expiration_time: int):
-        self.expiration_time = expiration_time
-        self.data: list[tuple[float, float]] = []
-
-    def append(self, value: float):
-        current_time = time.time()
-        self.data.append((current_time, value))
-        self.expire(current_time)
-
-    def expire(self, current_time: float):
-        self.data = [(ts, val) for ts, val in self.data if current_time - ts <= self.expiration_time]
-
-    def get_values(self) -> list[float]:
-        current_time = time.time()
-        self.expire(current_time)
-        return [val for ts, val in self.data]
-
-    def len(self) -> int:
-        current_time = time.time()
-        self.expire(current_time)
-        return len(self.data)
+from ExpiringList import ExpiringList
 
 requests_by_ip: dict[str, ExpiringList] = {}
 times_by_url: dict[str, ExpiringList] = {}
 status_by_ip: dict[str, ExpiringList] = {}
 ban_reasons: list[str] = []
 
-config = {
+config: dict = {
     'columns': {
         'remote_addr': -1,
         'host': -1,
@@ -60,8 +40,8 @@ column_2_width: int = 15
 column_3_width: int = 17
 refresh_time: int = 1
 
-start_time = time.time()
-log_file_path = None
+start_time: float = time.time()
+log_file_path: str = ''
 
 ip_stats: dict[str, dict] = {}
 times_by_url_stats: dict[str, dict] = {}
@@ -70,17 +50,18 @@ lines_parsed: int = 0
 
 
 
-def init():
+def init() -> None:
     global log_file_path
     nginx_config = subprocess.run(['nginx', '-T'], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL).stdout.decode('utf-8')
-    output = re.search('access_log\s+([^\s]+)\s+([^\s]+)\s*;', nginx_config, flags=re.IGNORECASE)
+    output = re.search(r'access_log\s+([^\s]+)\s+([^\s]+)\s*;', nginx_config, flags=re.IGNORECASE)
     if output is None:
         print("Could not find access_log directive in nginx config")
         sys.exit(1)
+    log_file_format = 'combined'
     if output is not None:
         log_file_path = output.group(1)
         log_file_format = output.group(2)
-    output = re.search(f'log_format\s+{log_file_format}([^;]+);', nginx_config, flags=re.IGNORECASE | re.DOTALL)
+    output = re.search(f'log_format\\s+{log_file_format}([^;]+);', nginx_config, flags=re.IGNORECASE | re.DOTALL)
     if output is None:
         print(f"Could not find log_format {log_file_format} in nginx config")
         sys.exit(1)
@@ -111,7 +92,21 @@ def init():
         if config['columns'][config_line] == -1:
             print(f"Could not find column for {config_line} in log_format")
             sys.exit(1)
+    lockfile_init()
     iptables_init()
+
+
+def lockfile_init():
+    lockfile_path = '/var/run/minwaf.lock'
+    if os.path.exists(lockfile_path):
+        print(f"Lockfile {lockfile_path} exists, another instance may be running. Exiting.")
+        sys.exit(1)
+    with open(lockfile_path, 'w') as f:
+        f.write(str(os.getpid()))
+    def remove_lockfile():
+        if os.path.exists(lockfile_path):
+            os.remove(lockfile_path)
+    atexit.register(remove_lockfile)
 
 
 def iptables_init():
@@ -195,11 +190,10 @@ def print_stats():
 
     print()
     for ip in banned_ips:
-        print(f"{ip} is banned for {config['ban_time'] - (current_time - banned_ips[ip]):.0f}s", end=', ')
-    print()
+        print(f"{ip} banned for {config['ban_time'] - (current_time - banned_ips[ip]):.0f}s", end=', ')
     print()
     for line in ban_reasons:
-        print(f"ban: {line.strip()}")
+        print(f"{line.strip()}")
 
 
 def iptables_unban_expired():
@@ -335,16 +329,16 @@ def print_yellow(message, end = '\n'):
     sys.stderr.write('\x1b[1;33m' + message + '\x1b[0m' + end)
 
 @click.command()
-@click.option('--time-frame', default=300, help='Time frame in seconds to analyze logs')
-@click.option('--ban-time', default=600, help='Ban time in seconds for IP addresses')
+@click.option('--time-frame', default=300, help='Time frame in seconds to analyze logs (default: 300)')
+@click.option('--ban-time', default=600, help='Ban time in seconds for IP addresses (default: 600)')
 @click.option('--background', is_flag=True, help='Run in background (daemon mode)')
-@click.option('--url-stats', is_flag=True, help='Show URL stats')
-def main(time_frame, ban_time, background, url_stats):
+@click.option('--skip-url-stats', is_flag=True, help='Show URL stats')
+def main(time_frame, ban_time, background, skip_url_stats):
     global log_file_path
     config['time_frame'] = time_frame
     config['ban_time'] = ban_time
     config['background'] = background
-    config['url_stats'] = url_stats
+    config['url_stats'] = not skip_url_stats
     init()
     if config['background']:
         print("Running in background mode")
