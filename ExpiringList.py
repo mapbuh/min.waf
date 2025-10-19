@@ -23,3 +23,16 @@ class ExpiringList:
         self.expire(current_time)
         return len(self.data)
 
+    def max_ts(self) -> float | None:
+        current_time = time.time()
+        self.expire(current_time)
+        if not self.data:
+            return None
+        return max(ts for ts, val in self.data)
+
+    def min_ts(self) -> float | None:
+        current_time = time.time()
+        self.expire(current_time)
+        if not self.data:
+            return None
+        return min(ts for ts, val in self.data)
