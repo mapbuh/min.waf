@@ -3,6 +3,7 @@
 import atexit
 import click
 import datetime
+import logging
 import numpy as np
 import os
 import re
@@ -19,7 +20,6 @@ times_by_url: dict[str, ExpiringList] = {}
 status_by_ip: dict[str, ExpiringList] = {}
 times_by_ua: dict[str, ExpiringList] = {}
 banned_ips: dict[str, float] = {}
-ban_reasons: list[str] = []
 
 config: dict = {
     'columns': {
@@ -104,6 +104,8 @@ def init() -> None:
     atexit.register(lockfile_remove)
     iptables_init()
     atexit.register(iptables_clear)
+    logging.basicConfig(filename="/var/log/min.waf.log", filemode='a', format='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.DEBUG)
+
 
 def lockfile_remove():
     if os.path.exists(config['lockfile']):
@@ -221,9 +223,6 @@ def print_stats():
     for ip in banned_ips:
         print(f"{ip} banned for {config['ban_time'] - (current_time - banned_ips[ip]):.0f}s", end=', ')
     print()
-    print()
-    for line in ban_reasons:
-        print(f"{line.strip()}")
 
 
 def iptables_unban_expired():
@@ -237,6 +236,7 @@ def iptables_unban_expired():
             else:
                 subprocess.run(['iptables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
                 subprocess.run(['iptables', '-D', 'MINWAF', '-s', ip, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
+            logging.info(f"Unbanned IP {ip} after {config['ban_time']}s")
 
 
 def parse_url(domain, request):
@@ -270,7 +270,6 @@ def tail_f(filename):
 
 
 def parse_line(line):
-    global ban_reasons
     global lines_parsed
     try:
         columns = shlex.split(line)
@@ -338,8 +337,7 @@ def parse_line(line):
 #            line = f"Ban IP {ip} - High percentage of bad HTTP statuses: {status_by_ip_stats[ip]['bad_perc']:.2f}% ({status_by_ip_stats[ip]['bad']} bad out of {status_by_ip_stats[ip]['count']} total)"
         if status_by_ip_stats[ip]['count'] > 10 and status_by_ip_stats[ip]['bad_perc'] > 50.0 and not ip in banned_ips:
             iptables_ban(ip)
-            ban_reasons.append(line)
-            ban_reasons = ban_reasons[-config['detail_lines']:]
+            logging.info(f"Banned IP {ip} - High percentage of bad HTTP statuses: {status_by_ip_stats[ip]['bad_perc']:.2f}% ({status_by_ip_stats[ip]['bad']} bad out of {status_by_ip_stats[ip]['count']} total)")
 
     if config['ua_stats']:
         values = times_by_ua[ua].get_values()
