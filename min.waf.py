@@ -11,11 +11,14 @@ import shlex
 import subprocess
 import sys
 import time
-from functools import lru_cache
 
 from ExpiringList import ExpiringList
+from PrintStats import PrintStats
 
 requests_by_ip: dict[str, ExpiringList] = {}
+ip_stats: dict[str, dict] = {}
+ip_worst: dict = {'ip': '', 'ratio': 0.0001}
+ip_ignored: list[str] = []
 times_by_url: dict[str, ExpiringList] = {}
 status_by_ip: dict[str, ExpiringList] = {}
 times_by_ua: dict[str, ExpiringList] = {}
@@ -29,6 +32,7 @@ config: dict = {
         'request': -1,
         'status': -1,
         'upstream_response_time': -1,
+        'http_referer': -1,
         'http_user_agent': -1,
     },
     'time_frame': 300,
@@ -36,24 +40,22 @@ config: dict = {
     'background': False,
     'url_stats': False,
     'ua_stats': False,
+    'referer_stats': False,
     'lockfile': '/var/run/min.waf.lock',
     'detail_lines': 10,
+    'start_time': None,
+    'lines_parsed': 0,
 }
 
 
-column_1_width: int = 45
-column_2_width: int = 15
-column_3_width: int = 17
-refresh_time: int = 1
 
-start_time: float = time.time()
 log_file_path: str = ''
 
-ip_stats: dict[str, dict] = {}
 times_by_url_stats: dict[str, dict] = {}
 status_by_ip_stats: dict[str, dict] = {}
 ua_stats: dict[str, dict] = {}
-lines_parsed: int = 0
+referer_data: dict[str, ExpiringList] = {}
+referer_stats: dict[str, dict] = {}
 
 
 def init() -> None:
@@ -96,6 +98,8 @@ def init() -> None:
             config['columns']['upstream_response_time'] = i + offset
         elif re.search(r'^\$http_user_agent$', col):
             config['columns']['http_user_agent'] = i + offset
+        elif re.search(r'^\$http_referer$', col):
+            config['columns']['http_referer'] = i + offset
     for config_line in config['columns']:
         if config['columns'][config_line] == -1:
             print(f"Could not find column for {config_line} in log_format")
@@ -105,6 +109,8 @@ def init() -> None:
     iptables_init()
     atexit.register(iptables_clear)
     logging.basicConfig(filename="/var/log/min.waf.log", filemode='a', format='%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s', datefmt='%Y-%m-%d %H:%M:%S', level=logging.DEBUG)
+    config['start_time'] = time.time()
+    logging.info("min.waf started")
 
 
 def lockfile_remove():
@@ -150,79 +156,6 @@ def iptables_ban(ip_address: str):
         return
     subprocess.run(['iptables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '80', '-j', 'DROP'])
     subprocess.run(['iptables', '-A', 'MINWAF', '-s', ip_address, '-p', 'tcp', '--dport', '443', '-j', 'DROP'])
-    
-
-def print_stats():
-    current_time = time.time()
-    print("\033c", end="")  # Clear screen
-    print(f"Running: {time.time() - start_time:.2f} seconds  |  Parsed: {lines_parsed} lines  |  Time frame: {config['time_frame']} seconds")
-    print(f"{'IP Address':<{column_1_width}} {'Upstream Time':<{column_2_width}} {'Requests':<{column_3_width}}")
-    print("=" * 100)
-
-    # sort by total_time
-    counter = 0
-    for ip, stats in sorted(ip_stats.items(), key=lambda item: item[1]['total_time'], reverse=True):
-#    for ip, stats in ip_stats.items():
-        counter += 1
-        if counter > config['detail_lines']:
-            break
-        message = f"{ip:<{column_1_width}.{column_1_width}} {stats['total_time']:>{column_2_width}.3f}/{stats['avail_time']:<15.3f} {stats['request_count']:5d}rq"
-        if ip in banned_ips:
-            print_red(message)
-        elif stats['total_time'] > stats['avail_time'] * 0.5 and stats['request_count'] > 10:
-            print_yellow(message)
-        else:
-            print(message)
-
-    print()
-    counter = 0
-    for ip, data in sorted(status_by_ip_stats.items(), key=lambda item: (item[1]['bad_perc'], item[1]['count']), reverse=True):
-        #for ip, data in status_by_ip_stats[ip].items():
-        if counter > config['detail_lines']:
-            break
-        counter += 1
-        message = f"{ip:<{column_1_width}.{column_1_width}}: All: {data['count']:>10}, Good: {data['good_perc']:>8.2f}%, Bad: {data['bad_perc']:>8.2f}%"
-        if ip in banned_ips:
-            print_red(message)
-        elif data['bad_perc'] > 10.0:
-            print_yellow(message)
-        else:
-            print(message)
-
-    if config['url_stats']:
-        print()
-        counter = 0
-        for url, stats in sorted(times_by_url_stats.items(), key=lambda item: item[1]['total_time'], reverse=True):
-            #if stats['total_time'] < 1:
-            #    continue
-            counter += 1
-            if counter > config['detail_lines']:
-                break
-            message = f"{url:<100.100} Total: {stats['total_time']:>6.2f}, Avg: {stats['avg_time']:>6.2f}s 95p: {stats['p95_time']:>6.2f} {stats['request_count']:>6}rq"
-            if stats['total_time'] > 1:
-                print_yellow(message)
-            else:
-                print(message)
-
-    if config['ua_stats']:
-        print()
-        counter = 0
-        for ua, stats in sorted(ua_stats.items(), key=lambda item: item[1]['total_time'], reverse=True):
-            #if stats['total_time'] < 1:
-            #    continue
-            counter += 1
-            if counter > config['detail_lines']:
-                break
-            message = f"{ua:<100.100} Total: {stats['total_time']:>6.2f}, Avg: {stats['avg_time']:>6.2f}s 95p: {stats['p95_time']:>6.2f} {stats['count']:>6}rq"
-            if stats['total_time'] > 1:
-                print_yellow(message)
-            else:
-                print(message)
-
-    print()
-    for ip in banned_ips:
-        print(f"{ip} banned for {config['ban_time'] - (current_time - banned_ips[ip]):.0f}s", end=', ')
-    print()
 
 
 def iptables_unban_expired():
@@ -260,23 +193,56 @@ def tail_f(filename):
                 time.sleep(0.1)  # Sleep briefly
                 continue
             parse_line(line)
-            if (time.time() - refresh_ts) > refresh_time:
+            if (time.time() - refresh_ts) > config['refresh_time']:
                 if not config['background']:
-                    print_stats()
+                    PrintStats.print_stats(config, banned_ips, ip_stats, status_by_ip_stats, referer_stats, times_by_url_stats, ua_stats)
                 iptables_unban_expired()
                 clear_lists()
                 refresh_ts = time.time()
 
 
+def ignore_ip(ip, ua) -> bool:
+    if ip in ip_ignored:
+        return True
+    # ignore known bots
+    if 'http://www.bing.com/bingbot.htm' in ua:
+        logging.debug(f"Ignoring bingbot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'http://www.google.com/bot.html' in ua:
+        logging.debug(f"Ignoring googlebot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'http://www.facebook.com/externalhit_uatext.php' in ua:
+        logging.debug(f"Ignoring facebook bot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'http://mj12bot.com/' in ua:
+        logging.debug(f"Ignoring majestic bot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'https://babbar.tech/crawler' in ua:
+        logging.debug(f"Ignoring babbar bot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'Monit/5.33.0' in ua:
+        logging.debug(f"Ignoring monit from: {ip}")
+        ip_ignored.append(ip)
+        return True
+    if 'https://developers.facebook.com/docs/sharing/webmasters/crawler' in ua:
+        logging.debug(f"Ignoring facebook bot from: {ip}")
+        ip_ignored.append(ip)
+        return True
+
+    return False
 
 def parse_line(line):
-    global lines_parsed
     try:
         columns = shlex.split(line)
     except ValueError:
         # cannot parse line
         return
-    lines_parsed += 1
+    config['lines_parsed'] += 1
     ip = columns[config['columns']['remote_addr']]
     upstream_response_time = columns[config['columns']['upstream_response_time']]
     req_ts = columns[config['columns']['time_local']] + ' ' + columns[config['columns']['time_local'] + 1]
@@ -284,40 +250,63 @@ def parse_line(line):
     http_status = columns[config['columns']['status']]
     req = parse_url(columns[config['columns']['host']], columns[config['columns']['request']])
     ua = columns[config['columns']['http_user_agent']]
+    referer = columns[config['columns']['http_referer']]
     if upstream_response_time == '-':
         upstream_response_time = 0.1
+
+    if ignore_ip(ip, ua):
+        return
     if not ip in requests_by_ip:
         requests_by_ip[ip] = ExpiringList(expiration_time=config['time_frame'])
-    requests_by_ip[ip].append(upstream_response_time)
+    requests_by_ip[ip].append(req_ts, {"upstream_response_time": float(upstream_response_time), "log_line": line})
     if not req in times_by_url:
         times_by_url[req] = ExpiringList(expiration_time=config['time_frame'])
-    times_by_url[req].append(float(upstream_response_time))
+    times_by_url[req].append(req_ts, {"upstream_response_time": float(upstream_response_time), "log_line": line})
     if not ip in status_by_ip:
         status_by_ip[ip] = ExpiringList(expiration_time=config['time_frame'])
-    status_by_ip[ip].append(float(http_status))
+    status_by_ip[ip].append(req_ts, {"http_status": float(http_status), "log_line": line})
     if not ua in times_by_ua:
         times_by_ua[ua] = ExpiringList(expiration_time=config['time_frame'])
-    times_by_ua[ua].append(float(upstream_response_time))
+    times_by_ua[ua].append(req_ts, {"upstream_response_time": float(upstream_response_time), "log_line": line})
+    if config['referer_stats']:
+        if not ip in referer_data and config['referer_stats']:
+            referer_data[ip] = ExpiringList(expiration_time=config['time_frame'])
+        if '://' in referer:
+            referer = referer.split('://')[1].split('?')[0]
+        referer_entry =  {"http_request": req, "http_referer": referer, "log_line": line}
+        referer_data[ip].append(req_ts, referer_entry)
+        #print(f"referer {referer_entry['http_referer']} for request {referer_entry['http_request']}")
 
     requests = requests_by_ip[ip].get_values()
-    ip_stats[ip] = {'total_time': 0.0, 'request_count': 0}
-    for upstream_time in requests:
+    ip_stats[ip] = {'total_time': 0.0, 'request_count': 0, 'avail_time': 0.0, 'ratio': 0.0, 'steal': 0.0}
+    for request in requests:
         ip_stats[ip]['request_count'] += 1
-        ip_stats[ip]['total_time'] += float(upstream_time)
+        ip_stats[ip]['total_time'] += float(request['upstream_response_time'])
         ip_stats[ip]['avail_time'] = requests_by_ip[ip].max_ts() - requests_by_ip[ip].min_ts()
+        if ip_stats[ip]['avail_time'] == 0:
+            ip_stats[ip]['ratio'] = 0
+            ip_stats[ip]['steal'] = 0
+        else:
+            ip_stats[ip]['ratio'] = ip_stats[ip]['total_time'] / ip_stats[ip]['avail_time']
+            ip_stats[ip]['steal'] = ip_stats[ip]['avail_time'] - ip_stats[ip]['total_time']
+    if ip_stats[ip]['steal'] < -30 and ip_stats[ip]['total_time'] > 5:
+        logging.debug(f"IP {ip} is stealing time: {ip_stats[ip]['steal']:.2f}s over {ip_stats[ip]['total_time']:.2f}s with {ip_stats[ip]['request_count']} requests ratio: {ip_stats[ip]['ratio']:.6f}")
+        if ip_stats[ip]['ratio'] > ip_worst['ratio']:
+            ip_worst['ratio'] = ip_stats[ip]['ratio']
+            ip_worst['ip'] = ip
+            logging.debug(f"worst_ip : {ip_worst['ip']} with ratio {ip_worst['ratio']:.6f} from ({ip_stats[ip]['request_count']})r")
 
     if config['url_stats']:
-        values = times_by_url[req].get_values()
+        values = times_by_url[req].get_values_by_key('upstream_response_time')
         times_by_url_stats[req] = {}
         times_by_url_stats[req]['avg_time'] = sum(values) / len(values)
         times_by_url_stats[req]['request_count'] = len(values)
         times_by_url_stats[req]['total_time'] = sum(values)
-        times_by_url_stats[req]['p95_time'] = np.percentile(values, 95)
 
-    good_statuses: list[int] = [200, 499]
+    good_statuses: list[int] = [200, 206, 499]
     ignore_statuses: list[int] = [302, 303, 304, 307, 308]
     # wonder about 301, all wp related return 301
-    values = status_by_ip[ip].get_values()
+    values = status_by_ip[ip].get_values_by_key('http_status')
     status_by_ip_stats[ip] = {"count": 0, "good": 0, "bad": 0, "bad_perc": 0.0, "good_perc": 0.0}
     for status in values:
         if int(status) in ignore_statuses:
@@ -330,103 +319,89 @@ def parse_line(line):
             status_by_ip_stats[ip]["good"] += 1
         else:
             status_by_ip_stats[ip]["bad"] += 1
-            status_by_ip_stats[ip]["bad_bayes"] = 1
         status_by_ip_stats[ip]["good_perc"] = (status_by_ip_stats[ip]["good"] / status_by_ip_stats[ip]["count"]) * 100
         status_by_ip_stats[ip]["bad_perc"] = (status_by_ip_stats[ip]["bad"] / status_by_ip_stats[ip]["count"]) * 100
-#        if status_by_ip_stats[ip]['bad'] > 0 and bad_actor_http_status(status_by_ip_stats[ip]['bad']):
-#            line = f"Ban IP {ip} - High percentage of bad HTTP statuses: {status_by_ip_stats[ip]['bad_perc']:.2f}% ({status_by_ip_stats[ip]['bad']} bad out of {status_by_ip_stats[ip]['count']} total)"
-        if status_by_ip_stats[ip]['count'] > 10 and status_by_ip_stats[ip]['bad_perc'] > 50.0 and not ip in banned_ips:
+        if status_by_ip_stats[ip]['count'] > 10 and status_by_ip_stats[ip]['bad_perc'] > 75.0 and not ip in banned_ips:
             iptables_ban(ip)
             logging.info(f"Banned IP {ip} - High percentage of bad HTTP statuses: {status_by_ip_stats[ip]['bad_perc']:.2f}% ({status_by_ip_stats[ip]['bad']} bad out of {status_by_ip_stats[ip]['count']} total)")
+            for line in requests_by_ip[ip].get_values_by_key('log_line'):
+                logging.debug(f"{line}".strip())
 
     if config['ua_stats']:
-        values = times_by_ua[ua].get_values()
+        values = times_by_ua[ua].get_values_by_key('upstream_response_time')
         ua_stats[ua] = {
             'total_time': sum(values),
             'count': len(values),
             'avg_time': sum(values) / len(values),
-            'p95_time': np.percentile(values, 95)
         }
+
+    if config['referer_stats']:
+        referer_stats[ip] = {
+            'count': 0,
+            'no_referer': 0,
+            'related': 0,
+            'unrelated': 0
+        }
+        status = 'unrelated'
+        for data in referer_data[ip].get_values():
+            referer1 = data['http_referer']
+            if referer1 == '-':
+                status = 'no_referer'
+            else:
+                for data in referer_data[ip].get_values():
+                    request2 = data['http_request']
+                    if request2 in referer1:
+                        status = 'related'
+                        break
+            referer_stats[ip][status] += 1
+            referer_stats[ip]['count'] += 1
 
 
 def clear_lists():
     current_time = time.time()
     for ip in list(requests_by_ip.keys()):
-        requests_by_ip[ip].expire(current_time)
+        requests_by_ip[ip].expire()
         if requests_by_ip[ip].len() == 0:
             del requests_by_ip[ip]
             if ip in ip_stats:
                 del ip_stats[ip]
     for url in list(times_by_url.keys()):
-        times_by_url[url].expire(current_time)
+        times_by_url[url].expire()
         if times_by_url[url].len() == 0:
             del times_by_url[url]
             if url in times_by_url_stats:
                 del times_by_url_stats[url]
     for ip in list(status_by_ip.keys()):
-        status_by_ip[ip].expire(current_time)
+        status_by_ip[ip].expire()
         if status_by_ip[ip].len() == 0:
             del status_by_ip[ip]
             if ip in status_by_ip_stats:
                 del status_by_ip_stats[ip]
     for ua in list(times_by_ua.keys()):
-        times_by_ua[ua].expire(current_time)
+        times_by_ua[ua].expire()
         if times_by_ua[ua].len() == 0:
             del times_by_ua[ua]
             if ua in ua_stats:
                 del ua_stats[ua]
 
-def print_red(message, end = '\n'):
-    sys.stdout.write('\x1b[1;31m' + message + '\x1b[0m' + end)
-
-def print_green(message, end = '\n'):
-    sys.stdout.write('\x1b[1;32m' + message + '\x1b[0m' + end)
-
-def print_yellow(message, end = '\n'):
-    sys.stderr.write('\x1b[1;33m' + message + '\x1b[0m' + end)
-
-@lru_cache(maxsize=256)
-def bad_actor_http_status(bad_statuses: int) -> float:
-    p = {
-        'good_actor': {
-            'prior': 0.999,
-            'bad_status': 0.1,
-        },
-        'bad_actor': {
-            'prior': 0.001,
-            'bad_status': 0.2
-        },
-    }
-    p_good_actor = p['good_actor']['prior'] * pow(p['good_actor']['bad_status'], bad_statuses)
-    p_bad_actor = p['bad_actor']['prior'] * pow(p['bad_actor']['bad_status'], bad_statuses)
-    print(f"Bad statuses: {bad_statuses}, P(good_actor)={p_good_actor:.3f}, P(bad_actor)={p_bad_actor:.3f}")
-    if p_good_actor > p_bad_actor:
-        return False
-    else:
-        return True
-
-def ftest_bayes():
-    for bad_statuses in range(1, 11):
-        result = bad_actor_http_status(bad_statuses)
-        print(f"Bad statuses: {bad_statuses}, Bad actor: {result}")
 
 @click.command()
 @click.option('--time-frame', default=300, help='Time frame in seconds to analyze logs (default: 300)')
 @click.option('--ban-time', default=600, help='Ban time in seconds for IP addresses (default: 600)')
 @click.option('--background', is_flag=True, help='Run in background (daemon mode)')
-@click.option('--skip-url-stats', is_flag=True, help='Show URL stats')
-@click.option('--skip-ua-stats', is_flag=True, help='Show User-Agent stats')
-@click.option('--test-bayes', is_flag=True, help='Test Bayesian filtering and exit')
-def main(time_frame, ban_time, background, skip_url_stats, skip_ua_stats, test_bayes):
-    if test_bayes:
-        ftest_bayes()
-        sys.exit(0)
+@click.option('--skip-url-stats', is_flag=True, help="Don't show URL stats")
+@click.option('--skip-ua-stats', is_flag=True, help='Don\'t show User-Agent stats')
+@click.option('--skip-referer', is_flag=True, help='Don\t show Referer stats')
+@click.option('--refresh-time', default=1, help='Screen refresh time in seconds (default: 1)')
+def main(time_frame, ban_time, background, skip_url_stats, skip_ua_stats, skip_referer, refresh_time):
     global log_file_path
     config['time_frame'] = time_frame
     config['ban_time'] = ban_time
     config['background'] = background
     config['url_stats'] = not skip_url_stats
     config['ua_stats'] = not skip_ua_stats
+    config['referer_stats'] = not skip_referer
+    config['refresh_time'] = refresh_time
     init()
     if config['background']:
         print("Running in background mode")
