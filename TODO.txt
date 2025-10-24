@@ -1,0 +1,2 @@
+- inotify (detect log rotate)
+- move to nginx module, probably ngx_http_js_module
