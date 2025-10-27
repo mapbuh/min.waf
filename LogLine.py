@@ -1,7 +1,8 @@
 import time
 
+
 class LogLine:
-    def __init__(self, data: dict[str, str|float|int]):
+    def __init__(self, data: dict[str, str | float | int]):
         """
         Initializes a LogLine instance with data from a dictionary.
 
@@ -18,17 +19,21 @@ class LogLine:
                 - "host": The host header value.
                 - "path": The request path.
         """
-        self._ip = str(data.get("ip", ''))
-        self._upstream_response_time = float(data.get("upstream_response_time", '0.0'))
+        self._ip = str(data.get("ip", ""))
+        self._upstream_response_time = float(data.get("upstream_response_time", "0.0"))
         self._req_ts = int(data.get("req_ts", time.time()))
         self._http_status = int(data.get("http_status", 200))
-        self._req = str(data.get("req", ''))
-        self._ua = str(data.get("ua", ''))
-        self._referer = str(data.get("referer", ''))
-        self._log_line = str(data.get("log_line", ''))
-        self._host = str(data.get("host", ''))
-        self._path = str(data.get("path", ''))
-        
+        self._req = str(data.get("req", ""))
+        self._ua = str(data.get("ua", ""))
+        self._referer = str(data.get("referer", ""))
+        if "://" in self._referer:
+            self._referer = self._referer.split("://")[1].split("?")[0]
+        else:
+            self._referer = self._referer.split("?")[0]
+        self._log_line = str(data.get("log_line", ""))
+        self._host = str(data.get("host", ""))
+        self._path = str(data.get("path", ""))
+
     @property
     def ip(self) -> str:
         return self._ip

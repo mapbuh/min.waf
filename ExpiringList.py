@@ -1,44 +1,50 @@
 import time
 
-from typing import Any
+from typing import Any, Generic, TypeVar
 
-class ExpiringList:
+T = TypeVar('T')
+
+class ExpiringList(Generic[T]):
     def __init__(self, expiration_time: int):
+        if expiration_time == 0:
+            raise ValueError("Expiration time must be greater than zero")
         self.expiration_time = expiration_time
-        self.data: list[tuple[float, dict[str, Any]]] = []
+        self.data: list[tuple[float, T]] = []
 
-    def append(self, ts: float | None, value: dict[str, Any]) -> None:
-        if ts is not None:
-            current_time = ts
-        else:
-            current_time = time.time()
-        self.data.append((current_time, value))
+    def __repr__(self) -> str:
+        return f"ExpiringList({self.data})"
+
+    def append(self, ts: float | None, value: T) -> None:
+        if ts is None:
+            ts = time.time()
+        self.data.append((ts, value))
         self.expire()
 
     def expire(self):
-        current_time = time.time()
-        self.data = [(ts, val) for ts, val in self.data if current_time - ts <= self.expiration_time]
+        self.data = [
+            (ts, val)
+            for ts, val in self.data
+            if time.time() - ts <= self.expiration_time
+        ]
 
-    def get_values(self) -> list[dict[str, Any]]:
+    def values(self) -> list[Any]:
         self.expire()
         return [val for _, val in self.data]
-
-    def get_values_by_key(self, key: str) -> list[Any]:
-        self.expire()
-        return [val.get(key, None) for _, val in self.data]
 
     def len(self) -> int:
         self.expire()
         return len(self.data)
 
-    def max_ts(self) -> float:
+    def __len__(self) -> int:
         self.expire()
-        if not self.data:
-            return time.time()
-        return max(ts for ts, _ in self.data)
+        return len(self.data)
 
-    def min_ts(self) -> float:
+    def get_values_by_key(self, key: str) -> list[Any]:
         self.expire()
-        if not self.data:
-            return time.time() - self.expiration_time
-        return min(ts for ts, _ in self.data)
+        result: list[Any] = []
+        for _, val in self.data:
+            if isinstance(val, dict) and key in val:
+                result.append(val[key])
+            elif not isinstance(val, dict) and hasattr(val, key):
+                result.append(getattr(val, key))
+        return result
