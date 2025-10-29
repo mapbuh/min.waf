@@ -12,6 +12,17 @@ class PrintStats:
     column_4_width: int = 17
     column_5_width: int = 17
     column_6_width: int = 7
+    column_23_width: int = column_2_width + column_3_width + 1
+    column_456_width: int = column_4_width + column_5_width + column_6_width + 2
+    column_123456_width: int = (
+        column_1_width
+        + column_2_width
+        + column_3_width
+        + column_4_width
+        + column_5_width
+        + column_6_width
+        + 6
+    )
 
     @staticmethod
     def print_red(message: str, end: str = "\n"):
@@ -28,11 +39,11 @@ class PrintStats:
     @staticmethod
     def msg_red(message: str) -> str:
         return ("\x1b[1;31m" + message + "\x1b[0m")
-    
+
     @staticmethod
     def msg_green(message: str) -> str:
         return ("\x1b[1;32m" + message + "\x1b[0m")
-    
+
     @staticmethod
     def msg_yellow(message: str) -> str:
         return ("\x1b[1;33m" + message + "\x1b[0m")
@@ -53,10 +64,10 @@ class PrintStats:
         time_frame = f"Time frame: {config['time_frame']} seconds"
         output += (
             f"{running_time:^{PrintStats.column_1_width}.{PrintStats.column_1_width}}|"
-            f"{parsed_lines:^{PrintStats.column_2_width + PrintStats.column_3_width}.{PrintStats.column_2_width + PrintStats.column_3_width}} |"
-            f"{time_frame:^{PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width}.{PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width}}  |\n"
+            f"{parsed_lines:^{PrintStats.column_2_width + PrintStats.column_3_width}.{PrintStats.column_23_width}}|"
+            f"{time_frame:^{PrintStats.column_456_width}.{PrintStats.column_456_width}}|\n"
         )
-        output += "-" * (PrintStats.column_1_width + PrintStats.column_2_width + PrintStats.column_3_width + PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width + 6)
+        output += "-" * PrintStats.column_123456_width
         output += "\n"
         output += (
             f"{'IP Address':^{PrintStats.column_1_width}}|"
@@ -74,7 +85,7 @@ class PrintStats:
             f"{' unknown    none':<{PrintStats.column_5_width}}|"
             f"{'':^{PrintStats.column_6_width}}|\n"
         )
-        output += ("=" * (PrintStats.column_1_width + PrintStats.column_2_width + PrintStats.column_3_width + PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width + 6))
+        output += ("=" * PrintStats.column_123456_width)
         output += "\n"
 
         # sort by total_time
@@ -91,7 +102,7 @@ class PrintStats:
             status_stats = (
                 f"{stats.http_status_bad:.2f} ({stats.http_status_bad:.2f}%)"
             )
-            referer_stats = ""        
+            referer_stats = ""
             message = (
                 f"{ip:<{PrintStats.column_1_width}.{PrintStats.column_1_width}}|"
                 f"{stats.request_count:>{PrintStats.column_2_width}d}|"
@@ -109,9 +120,8 @@ class PrintStats:
                 output += (message)
             output += "\n"
 
-
         if config["url_stats"]:
-            output += ("=" * (PrintStats.column_1_width + PrintStats.column_2_width + PrintStats.column_3_width + PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width + 6))
+            output += ("=" * PrintStats.column_123456_width)
             output += "\n"
             counter = 0
             for url, stats in sorted(
@@ -142,7 +152,7 @@ class PrintStats:
                 output += "\n"
 
         if config["ua_stats"]:
-            output += ("=" * (PrintStats.column_1_width + PrintStats.column_2_width + PrintStats.column_3_width + PrintStats.column_4_width + PrintStats.column_5_width + PrintStats.column_6_width + 6))
+            output += ("=" * PrintStats.column_123456_width)
             output += "\n"
             counter = 0
             for ua, stats in sorted(

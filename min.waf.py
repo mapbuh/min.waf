@@ -216,12 +216,11 @@ def tail_f_read(filename: str):
     with open(filename, "r") as f:
         # Go to the end of the file
         f.seek(0, 2)
-        i = inotify.adapters.Inotify()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
-        i.add_watch(filename)  # pyright: ignore[reportUnknownMemberType]
+        i = inotify.adapters.Inotify()
+        i.add_watch(filename)  # type: ignore
         rotated = False
-        for event in i.event_gen(yield_nones=False):  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-            (_, type_names, _, _) = event  # pyright: ignore[reportGeneralTypeIssues, reportUnknownVariableType]
-
+        for event in i.event_gen(yield_nones=False):  # type: ignore
+            (_, type_names, _, _) = event  # type: ignore
             if "IN_MOVE_SELF" in type_names:
                 rotated = True
                 break
