@@ -1,4 +1,3 @@
-import logging
 
 """
 Module to check for known attack patterns in request URLs.
@@ -18,18 +17,17 @@ class KnownAttacks:
     @staticmethod
     def is_known(req: str) -> bool:
         known_attacks = [
+            "admin.php",
             "xmlrpc.php",
             "wp-login.php",
-            "administrator/index.php",
-            "user/login",
-            "admin.php",
             "wp-admin",
-            "phpmyadmin",
             "wp-content/plugins/hellopress/wp_filemanager.php",
+            "wp-includes/wlwmanifest.xml",
+            "phpinfo.php",
+            "install.php",
             "/.env",
-            "/app/",
             "/.git/config",
-            "/info.php",
+            ".git/credentials",
         ]
         req_lower = req.lower()
         for attack in known_attacks:

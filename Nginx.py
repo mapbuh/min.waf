@@ -3,7 +3,7 @@ import subprocess
 import re
 import sys
 import shlex
-
+import logging
 import LogLine
 
 
@@ -72,23 +72,27 @@ class Nginx:
             columns = shlex.split(line)
         except ValueError:
             # cannot parse line
-            print(f"Could not parse log line: {line.strip()}")
+            logging.error(f"Could not parse log line: {line.strip()}")
             return
-        ip = columns[config_columns["remote_addr"]]
-        upstream_response_time = columns[config_columns["upstream_response_time"]]
-        req_ts = (
-            columns[config_columns["time_local"]]
-            + " "
-            + columns[config_columns["time_local"] + 1]
-        )
-        req_ts = datetime.datetime.strptime(
-            req_ts, "[%d/%b/%Y:%H:%M:%S %z]"
-        ).timestamp()
-        http_status = columns[config_columns["status"]]
-        path = Nginx.parse_path(columns[config_columns["request"]])
-        req = columns[config_columns["host"]] + path
-        ua = columns[config_columns["http_user_agent"]]
-        referer = columns[config_columns["http_referer"]]
+        try:
+            ip = columns[config_columns["remote_addr"]]
+            upstream_response_time = columns[config_columns["upstream_response_time"]]
+            req_ts = (
+                columns[config_columns["time_local"]]
+                + " "
+                + columns[config_columns["time_local"] + 1]
+            )
+            req_ts = datetime.datetime.strptime(
+                req_ts, "[%d/%b/%Y:%H:%M:%S %z]"
+            ).timestamp()
+            http_status = columns[config_columns["status"]]
+            path = Nginx.parse_path(columns[config_columns["request"]])
+            req = columns[config_columns["host"]] + path
+            ua = columns[config_columns["http_user_agent"]]
+            referer = columns[config_columns["http_referer"]]
+        except (IndexError, KeyError):
+            logging.error(f"Could not parse log line (missing columns): {line.strip()}")
+            return
         if upstream_response_time == "-":
             upstream_response_time = 0.01
         return LogLine.LogLine(

@@ -1,2 +1,3 @@
 - inotify (detect log rotate)
 - move to nginx module, probably ngx_http_js_module
+- whitelist by domain, detect by certain url with http status 200

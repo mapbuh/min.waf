@@ -4,21 +4,22 @@ from glob import glob
 import click
 from Nginx import Nginx
 import gzip
+from LogLine import LogLine
 
-data = {}
+data: dict[str, dict[str, dict[str, int]]] = {}
 
 
-def analyze(log_line):
+def analyze(log_line: LogLine|None):
     global data
-    if int(log_line["http_status"]) != 404:
+    if log_line is None or int(log_line.http_status) != 404:
         return
-    if log_line["path"] not in data:
-        data[log_line["path"]] = {}
-    if log_line["host"] not in data[log_line["path"]]:
-        data[log_line["path"]][log_line["host"]] = {}
-    if log_line["ip"] not in data[log_line["path"]][log_line["host"]]:
-        data[log_line["path"]][log_line["host"]][log_line["ip"]] = 0
-    data[log_line["path"]][log_line["host"]][log_line["ip"]] += 1
+    if log_line.path not in data:
+        data[log_line.path] = {}
+    if log_line.host not in data[log_line.path]:
+        data[log_line.path][log_line.host] = {}
+    if log_line.ip not in data[log_line.path][log_line.host]:
+        data[log_line.path][log_line.host][log_line.ip] = 0
+    data[log_line.path][log_line.host][log_line.ip] += 1
 
 
 def data_print():
@@ -55,7 +56,7 @@ def data_write():
             if "." not in req:
                 continue
             # exclude certain file types
-            if req.endswith((".txt", ".jpg", ".png", ".css", ".js")):
+            if req.endswith((".txt", ".jpg", ".png", ".css", ".js", ".ico")):
                 continue
             f.write(f"{req},{total_ips},{domains}\n")
 
