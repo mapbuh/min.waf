@@ -1,5 +1,4 @@
 from LogLine import LogLine
-import logging
 
 
 class Bots:
@@ -57,11 +56,10 @@ class Bots:
         return False
 
     @staticmethod
-    def bad_bot(log_line: LogLine) -> bool:
+    def bad_bot(log_line: LogLine) -> str | None:
         ua = log_line.ua.lower()
         for bot_name, bot_signatures in Bots.bad_bots.items():
             for bot_signature in bot_signatures:
                 if bot_signature.lower() in ua:
-                    logging.info(f"Bad bot detected: {log_line.ip} - {bot_name} - {log_line.ua}")
-                    return True
-        return False
+                    return f"Bad bot detected: {bot_name} - {log_line.ua}"
+        return None

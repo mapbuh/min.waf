@@ -54,7 +54,13 @@ class IpTables:
         ])
 
     @staticmethod
-    def ban(ip_address: str, rts: RunTimeStats, config: Config, raw_lines: ExpiringList[str] | None = None):
+    def ban(
+        ip_address: str,
+        rts: RunTimeStats,
+        config: Config,
+        raw_lines: ExpiringList[str] | None = None,
+        reason: str = ""
+    ) -> None:
         if ip_address in rts.banned_ips:
             rts.banned_ips[ip_address] = time.time()
             return
@@ -74,8 +80,33 @@ class IpTables:
         subprocess.run([
             "iptables", "-A", "MINWAF", "-s", ip_address, "-p", "tcp", "--dport", "443", "-j", "DROP",
         ])
-        logging.info(f"{ip_address} - banned for {config.ban_time}s")
+        if reason != "":
+            logging.info(f"{ip_address} banned for {config.ban_time}s - Reason: {reason}")
+        else:
+            logging.info(f"{ip_address} banned for {config.ban_time}s")
         if raw_lines is not None:
             for raw_line in raw_lines.values():
                 logging.debug(f"{raw_line}".strip())
         return
+
+    @staticmethod
+    def unban_expired(rts: RunTimeStats, config: Config) -> None:
+        current_time = time.time()
+        for ip in list(rts.banned_ips.keys()):
+            if current_time - rts.banned_ips[ip] > config.ban_time:
+                del rts.banned_ips[ip]
+                if ":" in ip:
+                    subprocess.run([
+                        "ip6tables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "80", "-j", "DROP",
+                    ])
+                    subprocess.run([
+                        "ip6tables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
+                    ])
+                else:
+                    subprocess.run([
+                        "iptables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "80", "-j", "DROP",
+                    ])
+                    subprocess.run([
+                        "iptables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
+                    ])
+                logging.info(f"Unbanned IP {ip} after {config.ban_time}s")

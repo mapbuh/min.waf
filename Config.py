@@ -15,7 +15,7 @@ class Config:
     url_stats = False
     ua_stats = False
     referer_stats = False
-    lockfile: str = "/var/run/min.waf.lock"
+    lockfile: str = "/var/run/min.waf.pid"
     detail_lines: int = 12
     refresh_time: int = 60
     whitelist_triggers: dict[str, list[dict[str, str]]] = {
@@ -36,3 +36,4 @@ class Config:
             },
         ],
     }
+    silent: bool = False

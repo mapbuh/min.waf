@@ -4,7 +4,6 @@ import atexit
 import click
 import logging
 import os
-import subprocess
 import sys
 import time
 import inotify.adapters  # type: ignore
@@ -25,6 +24,12 @@ config: Config = Config()
 rts: RunTimeStats = RunTimeStats(config)
 
 
+def at_exit():
+    lockfile_remove()
+    IpTables.clear()
+    logging.info(f"min.waf stopped after {time.time() - rts.start_time:.2f}s")
+
+
 def init() -> None:
     global log_file_path, rts, config
     nginx_config = Nginx.config_get()
@@ -37,64 +42,52 @@ def init() -> None:
             sys.exit(1)
 
     lockfile_init()
-    atexit.register(lockfile_remove)
     IpTables.init()
-    atexit.register(IpTables.clear)
+    atexit.register(at_exit)
     logging.basicConfig(
-        filename="/var/log/min.waf.log",
-        filemode="a",
-        format="%(asctime)s,%(msecs)03d %(name)s %(levelname)s %(message)s",
+        format="%(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        level=logging.DEBUG,
+        level=logging.INFO if config.silent else logging.DEBUG,
     )
     logging.getLogger("inotify").setLevel(logging.WARNING)
     rts.start_time = time.time()
     logging.info("min.waf started")
 
 
-def lockfile_remove():
+def lockfile_remove() -> None:
     if os.path.exists(config.lockfile):
         os.remove(config.lockfile)
 
 
+def check_pid(pid: int) -> bool:
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
+
+
 def lockfile_init():
     if os.path.exists(config.lockfile):
-        print(
-            f"Lockfile {config.lockfile} exists, another instance may be running. Exiting."
-        )
-        sys.exit(1)
+        with open(config.lockfile, "r") as f:
+            pid = f.read().strip()
+            if pid.isdigit() and check_pid(int(pid)):
+                print(
+                    f"Lockfile {config.lockfile} exists, another instance may be running. Exiting."
+                )
+                sys.exit(1)
+        lockfile_remove()
     with open(config.lockfile, "w") as f:
         f.write(str(os.getpid()))
 
 
-def iptables_unban_expired():
-    global rts, config
-    current_time = time.time()
-    for ip in list(rts.banned_ips.keys()):
-        if current_time - rts.banned_ips[ip] > config.ban_time:
-            del rts.banned_ips[ip]
-            if ":" in ip:
-                subprocess.run([
-                    "ip6tables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "80", "-j", "DROP",
-                ])
-                subprocess.run([
-                    "ip6tables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
-                ])
-            else:
-                subprocess.run([
-                    "iptables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "80", "-j", "DROP",
-                ])
-                subprocess.run([
-                    "iptables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
-                ])
-            logging.info(f"Unbanned IP {ip} after {config.ban_time}s")
-
-
 def refresh_cb():
-    global rts
-    if not config.background:
+    global rts, config
+    if not config.background and not config.silent:
         PrintStats.print_stats(config, rts)
-    iptables_unban_expired()
+    IpTables.unban_expired(rts, config)
 
 
 def logstats_cb():
@@ -117,7 +110,8 @@ def tail_f_read(filename: str):
         i.add_watch(filename)  # type: ignore
         rotated = False
         partial_line: str = ""
-        for event in i.event_gen(yield_nones=False):  # type: ignore
+        events = i.event_gen(yield_nones=False, timeout_s=1)  # type: ignore
+        for event in events:  # type: ignore
             (_, type_names, _, _) = event  # type: ignore
             if "IN_MOVE_SELF" in type_names:
                 rotated = True
@@ -155,9 +149,8 @@ def parse_line(line: str) -> None:
         return
     if Bots.good_bot(log_line):
         return
-    if Bots.bad_bot(log_line):
-        logging.info(f"Bad bot detected: {log_line.ip} - {log_line.ua}")
-        IpTables.ban(log_line.ip, rts, config, None)
+    if reason := Bots.bad_bot(log_line):
+        IpTables.ban(log_line.ip, rts, config, None, reason)
         return
     if config.whitelist_triggers.get(log_line.host):
         for trigger in config.whitelist_triggers[log_line.host]:
@@ -166,8 +159,8 @@ def parse_line(line: str) -> None:
                     rts.ip_whitelist[log_line.host] = []
                 rts.ip_whitelist[log_line.host].append(log_line.ip)
                 logging.info(
-                    f"Whitelisting IP {log_line.ip} for host {log_line.host} "
-                    f"due to trigger on path {log_line.path} with status "
+                    f"{log_line.ip} whitelisted due to trigger "
+                    f"on path {log_line.host}{log_line.path} with status "
                     f"{log_line.http_status}")
                 return
 
@@ -212,8 +205,8 @@ def parse_line(line: str) -> None:
         ua_data.raw_lines.append(log_line.req_ts, line)
         ua_data.log_lines.append(log_line.req_ts, log_line)
 
-    if Checks.bad_req(log_line):
-        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+    if reason := Checks.bad_req(log_line):
+        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
     else:
         Checks.log_probes(log_line, line, rts)
 
@@ -224,8 +217,8 @@ def parse_line(line: str) -> None:
     if config.ua_stats and ua_data is not None:
         rts.ua_stats.create(ts=log_line.req_ts, key=log_line.ua, value=ua_data)
 
-    if Checks.bad_stats(log_line, ip_data):
-        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+    if reason := Checks.bad_stats(log_line, ip_data):
+        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
 
 
 @click.command()
@@ -246,6 +239,7 @@ def parse_line(line: str) -> None:
 @click.option(
     "--refresh-time", default=1, help="Screen refresh time in seconds (default: 1)"
 )
+@click.option("--silent", is_flag=True, help="Silent mode, no output to console")
 def main(
     time_frame: int,
     ban_time: int,
@@ -254,6 +248,7 @@ def main(
     ua_stats: bool,
     skip_referer: bool,
     refresh_time: int,
+    silent: bool,
 ):
     global log_file_path
     config.time_frame = time_frame
@@ -263,6 +258,7 @@ def main(
     config.ua_stats = ua_stats
     config.referer_stats = not skip_referer
     config.refresh_time = refresh_time
+    config.silent = silent
     if config.background:
         print("Running in background mode")
         pid = os.fork()

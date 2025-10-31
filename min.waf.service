@@ -1,0 +1,14 @@
+[Unit]
+Description=min.waf Service
+After=network.target iptables.service firewalld.service ip6tables.service ipset.service nftables.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/min.waf.py --silent
+PIDFile=/run/run/min.waf.pid
+KillSignal=SIGINT
+Restart=on-failure
+RestartPreventExitStatus=0 255
+
+[Install]
+WantedBy=multi-user.target
