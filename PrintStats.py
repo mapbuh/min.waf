@@ -1,3 +1,4 @@
+import logging
 import time
 import sys
 from RunTimeStats import RunTimeStats
@@ -48,6 +49,24 @@ class PrintStats:
         return ("\x1b[1;33m" + message + "\x1b[0m")
 
     @staticmethod
+    def log_stats(rts: RunTimeStats) -> None:
+        logging.info(
+            f"Running for {time.time() - rts.start_time:.2f}s, "
+            f"Total bans: {rts.bans}, "
+            f"Whitelisted IPs: {', '.join(ip for ips in rts.ip_whitelist.values() for ip in ips)}"
+        )
+        counter = 10
+        for path in sorted(rts.inter_domain.path, key=lambda p: rts.inter_domain.path[p].total_count(), reverse=True):
+            if counter <= 0:
+                break
+            if rts.inter_domain.path[path].total_count() == 0:
+                continue
+            if path in ["/", "/robots.txt", "/favicon.ico", "/apple-touch-icon.png"]:
+                continue
+            logging.debug(f"Path: {path}, Total Probes: {rts.inter_domain.path[path].total_count()}")
+            counter -= 1
+
+    @staticmethod
     def print_stats(
         config: Config,
         rts: RunTimeStats
@@ -55,8 +74,8 @@ class PrintStats:
         start_time = time.time()
         output = ""
         output += "\033c"  # Clear screen
-        running_time = f"Running: {time.time() - config.start_time:.2f} seconds, Total Bans: {rts.bans}"
-        parsed_lines = f"Parsed: {config.lines_parsed} lines"
+        running_time = f"Running: {time.time() - rts.start_time:.2f} seconds, Total Bans: {rts.bans}"
+        parsed_lines = f"Parsed: {rts.lines_parsed} lines"
         time_frame = f"Time frame: {config.time_frame} seconds"
         output += (
             f"{running_time:^{PrintStats.column_1_width}.{PrintStats.column_1_width}}|"
@@ -84,7 +103,6 @@ class PrintStats:
         output += ("=" * PrintStats.column_123456_width)
         output += "\n"
 
-        # sort by total_time
         counter = 0
         for ip, stats in sorted(
             rts.ip_stats.items(),

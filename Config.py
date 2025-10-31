@@ -17,13 +17,15 @@ class Config:
     referer_stats = False
     lockfile: str = "/var/run/min.waf.lock"
     detail_lines: int = 12
-    start_time: float = 0
-    lines_parsed: int = 0
     refresh_time: int = 60
     whitelist_triggers: dict[str, list[dict[str, str]]] = {
         'www.gift-tube.com': [
             {
                 'path': '/adming/dashboards/main',
+                'http_status': '200',
+            },
+            {
+                'path': '/nova-api/nova-notifications',
                 'http_status': '200',
             },
         ],

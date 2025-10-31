@@ -9,7 +9,7 @@ Ideally we'll identify new patterns by:
     - different IPs (should be more than 2)
     - one ip checking several of these
     - should have dot in the name (otherwise we'll block /admin /blog etc which are legit)
-    - exclude txt, jpg, png, css, js 
+    - exclude txt, jpg, png, css, js
 """
 
 
@@ -28,6 +28,24 @@ class KnownAttacks:
             "/.env",
             "/.git/config",
             ".git/credentials",
+            # from inter_domain stas
+            "/lv.php",
+            "/nc4.php",
+            "/ioxi-o.php",
+            "/222.php",
+            "/alphanew.php",
+            "/atomlib.php",
+            "/enclass.php",
+            "/vee.php",
+            "/system_log.php",
+            "/lock360.php",
+            "/abcd.php",
+            "/gifclass.php",
+            "/alfa.php",
+            "/.well-known/traffic-advice",
+            # from copilot suggestions
+            "/shell.php",
+            "/cmd.php",
         ]
         req_lower = req.lower()
         for attack in known_attacks:

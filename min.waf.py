@@ -48,7 +48,7 @@ def init() -> None:
         level=logging.DEBUG,
     )
     logging.getLogger("inotify").setLevel(logging.WARNING)
-    config.start_time = time.time()
+    rts.start_time = time.time()
     logging.info("min.waf started")
 
 
@@ -97,30 +97,45 @@ def refresh_cb():
     iptables_unban_expired()
 
 
+def logstats_cb():
+    global rts
+    PrintStats.log_stats(rts)
+
+
 def tail_f(filename: str):
     while True:
         tail_f_read(filename)
 
 
 def tail_f_read(filename: str):
-    refresh_ts = time.time()
+    refresh_ts: float = time.time()
+    logstats_ts: float = time.time()
     with open(filename, "r") as f:
         # Go to the end of the file
         f.seek(0, 2)
         i = inotify.adapters.Inotify()  # type: ignore
         i.add_watch(filename)  # type: ignore
         rotated = False
+        partial_line: str = ""
         for event in i.event_gen(yield_nones=False):  # type: ignore
             (_, type_names, _, _) = event  # type: ignore
             if "IN_MOVE_SELF" in type_names:
                 rotated = True
                 break
             if "IN_MODIFY" in type_names:
-                while (line := f.readline()) != '':
-                    parse_line(line)
+                while (line := f.readline()) != "":
+                    if line.endswith("\n"):
+                        parse_line(partial_line + line)
+                        partial_line = ""
+                    else:
+                        logging.debug(f"Partial line: {line}")
+                        partial_line = line
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
                 refresh_cb()
+            if (time.time() - logstats_ts) > config.time_frame:
+                logstats_ts = time.time()
+                logstats_cb()
         if rotated:
             logging.info("Log file rotated, reopening")
             time.sleep(3)
@@ -135,7 +150,7 @@ def parse_line(line: str) -> None:
     log_line = Nginx.parse_log_line(line, config.columns)
     if not log_line:
         return
-    config.lines_parsed += 1
+    rts.lines_parsed += 1
     if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
         return
     if Bots.good_bot(log_line):
@@ -199,6 +214,8 @@ def parse_line(line: str) -> None:
 
     if Checks.bad_req(log_line):
         IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+    else:
+        Checks.log_probes(log_line, line, rts)
 
     # store data
     rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)

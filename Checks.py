@@ -2,6 +2,7 @@ from LogLine import LogLine
 from KnownAttacks import KnownAttacks
 from IpData import IpData
 import logging
+from RunTimeStats import RunTimeStats
 
 
 class Checks:
@@ -31,3 +32,9 @@ class Checks:
             )
             return False
         return False
+
+    @staticmethod
+    def log_probes(log_line: LogLine, raw_line: str, rts: RunTimeStats) -> None:
+        # TODO - make it LRU cache
+        if log_line.http_status != 200:
+            rts.inter_domain.add(log_line.path, log_line.host, log_line.http_status, raw_line)

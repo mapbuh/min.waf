@@ -4,6 +4,7 @@ from typing import Any, Generic, TypeVar
 
 T = TypeVar('T')
 
+
 class ExpiringList(Generic[T]):
     def __init__(self, expiration_time: int):
         if expiration_time == 0:
