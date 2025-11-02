@@ -109,4 +109,4 @@ class IpTables:
                     subprocess.run([
                         "iptables", "-D", "MINWAF", "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
                     ])
-                logging.info(f"Unbanned IP {ip} after {config.ban_time}s")
+                logging.info(f"{ip} unbanned after {config.ban_time}s")

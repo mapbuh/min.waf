@@ -18,22 +18,16 @@ from RunTimeStats import RunTimeStats
 from IpTables import IpTables
 from Config import Config
 
-log_file_path: str = ""
 
-config: Config = Config()
-rts: RunTimeStats = RunTimeStats(config)
-
-
-def at_exit():
-    lockfile_remove()
+def at_exit(config: Config, rts: RunTimeStats) -> None:
+    lockfile_remove(config)
     IpTables.clear()
     logging.info(f"min.waf stopped after {time.time() - rts.start_time:.2f}s")
 
 
-def init() -> None:
-    global log_file_path, rts, config
+def init(config: Config, rts: RunTimeStats) -> None:
     nginx_config = Nginx.config_get()
-    log_file_path = nginx_config["log_file_path"]
+    config.log_file_path = nginx_config["log_file_path"]
     log_format = nginx_config["log_format"]
     config.columns = Nginx.parse_log_format(log_format)
     for config_line in config.columns:
@@ -41,9 +35,9 @@ def init() -> None:
             print(f"Could not find column for {config_line} in log_format")
             sys.exit(1)
 
-    lockfile_init()
+    lockfile_init(config)
     IpTables.init()
-    atexit.register(at_exit)
+    atexit.register(at_exit, config, rts)
     logging.basicConfig(
         format="%(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
@@ -54,7 +48,7 @@ def init() -> None:
     logging.info("min.waf started")
 
 
-def lockfile_remove() -> None:
+def lockfile_remove(config: Config) -> None:
     if os.path.exists(config.lockfile):
         os.remove(config.lockfile)
 
@@ -69,7 +63,7 @@ def check_pid(pid: int) -> bool:
         return True
 
 
-def lockfile_init():
+def lockfile_init(config: Config) -> None:
     if os.path.exists(config.lockfile):
         with open(config.lockfile, "r") as f:
             pid = f.read().strip()
@@ -78,40 +72,37 @@ def lockfile_init():
                     f"Lockfile {config.lockfile} exists, another instance may be running. Exiting."
                 )
                 sys.exit(1)
-        lockfile_remove()
+        lockfile_remove(config)
     with open(config.lockfile, "w") as f:
         f.write(str(os.getpid()))
 
 
-def refresh_cb():
-    global rts, config
+def refresh_cb(config: Config, rts: RunTimeStats) -> None:
     if not config.background and not config.silent:
         PrintStats.print_stats(config, rts)
     IpTables.unban_expired(rts, config)
 
 
-def logstats_cb():
-    global rts
+def logstats_cb(rts: RunTimeStats) -> None:
     PrintStats.log_stats(rts)
 
 
-def tail_f(filename: str):
+def tail_f(config: Config, rts: RunTimeStats):
     while True:
-        tail_f_read(filename)
+        tail_f_read(config, rts)
 
 
-def tail_f_read(filename: str):
+def tail_f_read(config: Config, rts: RunTimeStats):
     refresh_ts: float = time.time()
     logstats_ts: float = time.time()
-    with open(filename, "r") as f:
+    with open(config.log_file_path, "r") as f:
         # Go to the end of the file
         f.seek(0, 2)
         i = inotify.adapters.Inotify()  # type: ignore
-        i.add_watch(filename)  # type: ignore
+        i.add_watch(config.log_file_path)  # type: ignore
         rotated = False
         partial_line: str = ""
-        events = i.event_gen(yield_nones=False, timeout_s=1)  # type: ignore
-        for event in events:  # type: ignore
+        for event in i.event_gen(yield_nones=False):  # type: ignore
             (_, type_names, _, _) = event  # type: ignore
             if "IN_MOVE_SELF" in type_names:
                 rotated = True
@@ -119,25 +110,24 @@ def tail_f_read(filename: str):
             if "IN_MODIFY" in type_names:
                 while (line := f.readline()) != "":
                     if line.endswith("\n"):
-                        parse_line(partial_line + line)
+                        parse_line(config, rts, partial_line + line)
                         partial_line = ""
                     else:
                         logging.debug(f"Partial line: {line}")
                         partial_line = line
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
-                refresh_cb()
+                refresh_cb(config, rts)
             if (time.time() - logstats_ts) > config.time_frame:
                 logstats_ts = time.time()
-                logstats_cb()
+                logstats_cb(rts)
         if rotated:
             logging.info("Log file rotated, reopening")
             time.sleep(3)
             return
 
 
-def parse_line(line: str) -> None:
-    global rts, config
+def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
     ua_data: IpData | None = None
     url_data: IpData | None = None
 
@@ -222,6 +212,7 @@ def parse_line(line: str) -> None:
 
 
 @click.command()
+@click.option("--config", default="/etc/min.waf.conf", help="Path to config file")
 @click.option(
     "--time-frame",
     default=300,
@@ -232,41 +223,49 @@ def parse_line(line: str) -> None:
     default=600,
     help="Ban time in seconds for IP addresses (default: 600)",
 )
-@click.option("--background", is_flag=True, help="Run in background (daemon mode)")
-@click.option("--url-stats", is_flag=True, help="Show URL stats")
-@click.option("--ua-stats", is_flag=True, help="Show User-Agent stats")
-@click.option("--skip-referer", is_flag=True, help="Don't show Referer stats")
+@click.option("--background", is_flag=True, default=None, help="Run in background (daemon mode)")
+@click.option("--url-stats", is_flag=True, default=None, help="Show URL stats")
+@click.option("--ua-stats", is_flag=True, default=None, help="Show User-Agent stats")
 @click.option(
-    "--refresh-time", default=1, help="Screen refresh time in seconds (default: 1)"
+    "--refresh-time", default=None, help="Screen refresh time in seconds (default: 1)"
 )
-@click.option("--silent", is_flag=True, help="Silent mode, no output to console")
+@click.option("--silent", is_flag=True, default=None, help="Silent mode, no output to console")
 def main(
-    time_frame: int,
-    ban_time: int,
-    background: bool,
-    url_stats: bool,
-    ua_stats: bool,
-    skip_referer: bool,
-    refresh_time: int,
-    silent: bool,
+    config: str,
+    time_frame: int | None,
+    ban_time: int | None,
+    background: bool | None,
+    url_stats: bool | None,
+    ua_stats: bool | None,
+    refresh_time: int | None,
+    silent: bool | None,
 ):
-    global log_file_path
-    config.time_frame = time_frame
-    config.ban_time = ban_time
-    config.background = background
-    config.url_stats = url_stats
-    config.ua_stats = ua_stats
-    config.referer_stats = not skip_referer
-    config.refresh_time = refresh_time
-    config.silent = silent
-    if config.background:
+    configObj: Config = Config()
+    # Load config file
+    configObj.load(config)
+    if time_frame is not None:
+        configObj.time_frame = time_frame
+    if ban_time is not None:
+        configObj.ban_time = ban_time
+    if background is not None:
+        configObj.background = background
+    if url_stats is not None:
+        configObj.url_stats = url_stats
+    if ua_stats is not None:
+        configObj.ua_stats = ua_stats
+    if refresh_time is not None:
+        configObj.refresh_time = refresh_time
+    if silent is not None:
+        configObj.silent = silent
+    rtsObj: RunTimeStats = RunTimeStats(configObj)
+    if configObj.background:
         print("Running in background mode")
         pid = os.fork()
         if pid > 0:
             # Exit parent process
             sys.exit(0)
-    init()
-    tail_f(log_file_path)
+    init(configObj, rtsObj)
+    tail_f(configObj, rtsObj)
 
 
 if __name__ == "__main__":
