@@ -137,9 +137,9 @@ def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
     rts.lines_parsed += 1
     if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
         return
-    if Bots.good_bot(log_line):
+    if Bots.good_bot(config, log_line):
         return
-    if reason := Bots.bad_bot(log_line):
+    if reason := Bots.bad_bot(config, log_line):
         IpTables.ban(log_line.ip, rts, config, None, reason)
         return
     if config.whitelist_triggers.get(log_line.host):
@@ -212,7 +212,7 @@ def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
 
 
 @click.command()
-@click.option("--config", default="/etc/min.waf.conf", help="Path to config file")
+@click.option("--config", default="/etc/min.waf.yaml", help="Path to config file")
 @click.option(
     "--time-frame",
     default=300,

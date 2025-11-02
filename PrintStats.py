@@ -197,7 +197,7 @@ class PrintStats:
         output += "Banned: "
         output += ", ".join(ip for ip in rts.banned_ips.keys())
         output += "\nWhitelisted: "
-        output += ", ".join(ip for ips in rts.ip_whitelist.values() for ip in ips)
+        output += ", ".join(host + "/" + ip for host, ips in rts.ip_whitelist.items() for ip in ips)
         output += "\n"
         output += f"Time taken to generate stats: {time.time() - start_time:.4f} seconds\n"
         print(output)
