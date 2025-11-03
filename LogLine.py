@@ -34,6 +34,12 @@ class LogLine:
         self._host = str(data.get("host", ""))
         self._path = str(data.get("path", ""))
 
+    def __repr__(self) -> str:
+        return (f"LogLine(ip={self._ip}, upstream_response_time={self._upstream_response_time}, "
+                f"req_ts={self._req_ts}, http_status={self._http_status}, req={self._req}, "
+                f"ua={self._ua}, referer={self._referer}, log_line={self._log_line}, "
+                f"host={self._host}, path={self._path})")
+
     @property
     def ip(self) -> str:
         return self._ip

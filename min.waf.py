@@ -8,12 +8,9 @@ import sys
 import time
 import inotify.adapters  # type: ignore
 
-from Bots import Bots
-from ExpiringList import ExpiringList
+from MinProxy import MinProxy
 from Nginx import Nginx
 from PrintStats import PrintStats
-from IpData import IpData
-from Checks import Checks
 from RunTimeStats import RunTimeStats
 from IpTables import IpTables
 from Config import Config
@@ -78,7 +75,7 @@ def lockfile_init(config: Config) -> None:
 
 
 def refresh_cb(config: Config, rts: RunTimeStats) -> None:
-    if not config.background and not config.silent:
+    if not config.background and not config.silent and not config.proxy:
         PrintStats.print_stats(config, rts)
     IpTables.unban_expired(rts, config)
 
@@ -115,6 +112,7 @@ def tail_f_read(config: Config, rts: RunTimeStats):
                     else:
                         logging.debug(f"Partial line: {line}")
                         partial_line = line
+            logging.info(f"waiting for {time.time() - refresh_ts} > {config.refresh_time} until refresh")
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
                 refresh_cb(config, rts)
@@ -128,89 +126,10 @@ def tail_f_read(config: Config, rts: RunTimeStats):
 
 
 def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
-    ua_data: IpData | None = None
-    url_data: IpData | None = None
-
     log_line = Nginx.parse_log_line(line, config.columns)
     if not log_line:
         return
-    rts.lines_parsed += 1
-    if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
-        return
-    if Bots.good_bot(config, log_line):
-        return
-    if reason := Bots.bad_bot(config, log_line):
-        IpTables.ban(log_line.ip, rts, config, None, reason)
-        return
-    if config.whitelist_triggers.get(log_line.host):
-        for trigger in config.whitelist_triggers[log_line.host]:
-            if log_line.path == trigger['path'] and str(log_line.http_status) == str(trigger['http_status']):
-                if log_line.host not in rts.ip_whitelist:
-                    rts.ip_whitelist[log_line.host] = []
-                rts.ip_whitelist[log_line.host].append(log_line.ip)
-                logging.info(
-                    f"{log_line.ip} whitelisted due to trigger "
-                    f"on path {log_line.host}{log_line.path} with status "
-                    f"{log_line.http_status}")
-                return
-    if log_line.path.endswith(tuple(config.ignore_extensions)):
-        return
-    ip_data = rts.ip_stats.get(log_line.ip)
-    if ip_data is None:
-        ip_data = IpData(
-            log_line.ip,
-            'ip',
-            {
-                "raw_lines": ExpiringList(expiration_time=config.time_frame),
-                "log_lines": ExpiringList(expiration_time=config.time_frame),
-            }
-        )
-    ip_data.raw_lines.append(log_line.req_ts, line)
-    ip_data.log_lines.append(log_line.req_ts, log_line)
-
-    if config.url_stats:
-        url_data = rts.url_stats.get(log_line.path)
-        if url_data is None:
-            url_data = IpData(
-                log_line.path,
-                'path',
-                {
-                    "raw_lines": ExpiringList(expiration_time=config.time_frame),
-                    "log_lines": ExpiringList(expiration_time=config.time_frame),
-                }
-            )
-        url_data.raw_lines.append(log_line.req_ts, line)
-        url_data.log_lines.append(log_line.req_ts, log_line)
-
-    if config.ua_stats:
-        ua_data = rts.ua_stats.get(log_line.ua)
-        if ua_data is None:
-            ua_data = IpData(
-                log_line.ua,
-                'user_agent',
-                {
-                    "raw_lines": ExpiringList(expiration_time=config.time_frame),
-                    "log_lines": ExpiringList(expiration_time=config.time_frame),
-                }
-            )
-        ua_data.raw_lines.append(log_line.req_ts, line)
-        ua_data.log_lines.append(log_line.req_ts, log_line)
-
-    if reason := Checks.bad_req(log_line):
-        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
-    else:
-        Checks.log_probes(log_line, line, rts)
-
-    # logging.info(f"Parsed line: {line.strip()}")
-    # store data
-    rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
-    if config.url_stats and url_data is not None:
-        rts.url_stats.create(ts=log_line.req_ts, key=log_line.path, value=url_data)
-    if config.ua_stats and ua_data is not None:
-        rts.ua_stats.create(ts=log_line.req_ts, key=log_line.ua, value=ua_data)
-
-    if reason := Checks.bad_stats(log_line, ip_data):
-        IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+    return Nginx.process_line(config, rts, log_line, line)
 
 
 @click.command()
@@ -226,6 +145,7 @@ def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
     help="Ban time in seconds for IP addresses (default: 600)",
 )
 @click.option("--background", is_flag=True, default=None, help="Run in background (daemon mode)")
+@click.option("--proxy", is_flag=True, default=None, help="Run as a proxy server")
 @click.option("--url-stats", is_flag=True, default=None, help="Show URL stats")
 @click.option("--ua-stats", is_flag=True, default=None, help="Show User-Agent stats")
 @click.option(
@@ -237,6 +157,7 @@ def main(
     time_frame: int | None,
     ban_time: int | None,
     background: bool | None,
+    proxy: bool | None,
     url_stats: bool | None,
     ua_stats: bool | None,
     refresh_time: int | None,
@@ -259,6 +180,8 @@ def main(
         configObj.refresh_time = refresh_time
     if silent is not None:
         configObj.silent = silent
+    if proxy is not None:
+        configObj.proxy = proxy
     rtsObj: RunTimeStats = RunTimeStats(configObj)
     if configObj.background:
         print("Running in background mode")
@@ -267,7 +190,10 @@ def main(
             # Exit parent process
             sys.exit(0)
     init(configObj, rtsObj)
-    tail_f(configObj, rtsObj)
+    if proxy:
+        MinProxy(configObj, rtsObj)
+    else:
+        tail_f(configObj, rtsObj)
 
 
 if __name__ == "__main__":

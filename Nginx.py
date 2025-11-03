@@ -4,7 +4,14 @@ import re
 import sys
 import shlex
 import logging
-import LogLine
+from IpData import IpData
+from LogLine import LogLine
+from Config import Config
+from RunTimeStats import RunTimeStats
+from Bots import Bots
+from Checks import Checks
+from IpTables import IpTables
+from ExpiringList import ExpiringList
 
 
 class Nginx:
@@ -67,7 +74,7 @@ class Nginx:
     @staticmethod
     def parse_log_line(
         line: str, config_columns: dict[str, int]
-    ) -> LogLine.LogLine | None:
+    ) -> LogLine | None:
         try:
             columns = shlex.split(line)
         except ValueError:
@@ -95,7 +102,7 @@ class Nginx:
             return
         if upstream_response_time == "-":
             upstream_response_time = 0.01
-        return LogLine.LogLine(
+        return LogLine(
             {
                 "ip": ip,
                 "upstream_response_time": float(upstream_response_time),
@@ -116,6 +123,90 @@ class Nginx:
         try:
             path = request.split(" ")[1].split("?")[0]
         except IndexError:
-            # "20.65.193.163" _ [18/Oct/2025:04:23:16 +0300] "MGLNDD_144.76.163.188_443" 400 157 0 309 "-" "-" 0.122 "-" "US" "-" 1541953 1 2025-10-18T04:23:16+03:00
+            # "20.65.193.163" _ [18/Oct/2025:04:23:16 +0300] "MGLNDD_144.76.163.188_443" 400 157 0 309 "-" "-"
+            # 0.122 "-" "US" "-" 1541953 1 2025-10-18T04:23:16+03:00
             path = request.split("?")[0]
         return path
+
+    @staticmethod
+    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str) -> None:
+        ua_data: IpData | None = None
+        url_data: IpData | None = None
+
+        rts.lines_parsed += 1
+        if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
+            return
+        if Bots.good_bot(config, log_line):
+            return
+        if reason := Bots.bad_bot(config, log_line):
+            IpTables.ban(log_line.ip, rts, config, None, reason)
+            return
+        if config.whitelist_triggers.get(log_line.host):
+            for trigger in config.whitelist_triggers[log_line.host]:
+                if log_line.path == trigger['path'] and str(log_line.http_status) == str(trigger['http_status']):
+                    if log_line.host not in rts.ip_whitelist:
+                        rts.ip_whitelist[log_line.host] = []
+                    rts.ip_whitelist[log_line.host].append(log_line.ip)
+                    logging.info(
+                        f"{log_line.ip} whitelisted due to trigger "
+                        f"on path {log_line.host}{log_line.path} with status "
+                        f"{log_line.http_status}")
+                    return
+        if log_line.path.endswith(tuple(config.ignore_extensions)):
+            return
+        ip_data = rts.ip_stats.get(log_line.ip)
+        if ip_data is None:
+            ip_data = IpData(
+                log_line.ip,
+                'ip',
+                {
+                    "raw_lines": ExpiringList(expiration_time=config.time_frame),
+                    "log_lines": ExpiringList(expiration_time=config.time_frame),
+                }
+            )
+        ip_data.raw_lines.append(log_line.req_ts, line)
+        ip_data.log_lines.append(log_line.req_ts, log_line)
+
+        if config.url_stats:
+            url_data = rts.url_stats.get(log_line.path)
+            if url_data is None:
+                url_data = IpData(
+                    log_line.path,
+                    'path',
+                    {
+                        "raw_lines": ExpiringList(expiration_time=config.time_frame),
+                        "log_lines": ExpiringList(expiration_time=config.time_frame),
+                    }
+                )
+            url_data.raw_lines.append(log_line.req_ts, line)
+            url_data.log_lines.append(log_line.req_ts, log_line)
+
+        if config.ua_stats:
+            ua_data = rts.ua_stats.get(log_line.ua)
+            if ua_data is None:
+                ua_data = IpData(
+                    log_line.ua,
+                    'user_agent',
+                    {
+                        "raw_lines": ExpiringList(expiration_time=config.time_frame),
+                        "log_lines": ExpiringList(expiration_time=config.time_frame),
+                    }
+                )
+            ua_data.raw_lines.append(log_line.req_ts, line)
+            ua_data.log_lines.append(log_line.req_ts, log_line)
+
+        if reason := Checks.bad_req(log_line):
+            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+        else:
+            Checks.log_probes(log_line, line, rts)
+
+        # logging.info(f"Parsed line: {line.strip()}")
+        # store data
+        rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
+        if config.url_stats and url_data is not None:
+            rts.url_stats.create(ts=log_line.req_ts, key=log_line.path, value=url_data)
+        if config.ua_stats and ua_data is not None:
+            rts.ua_stats.create(ts=log_line.req_ts, key=log_line.ua, value=ua_data)
+
+        if reason := Checks.bad_stats(log_line, ip_data):
+            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
