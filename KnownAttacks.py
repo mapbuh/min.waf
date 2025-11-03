@@ -42,7 +42,6 @@ class KnownAttacks:
             "/abcd.php",
             "/gifclass.php",
             "/alfa.php",
-            "/.well-known/traffic-advice",
             # from copilot suggestions
             "/shell.php",
             "/cmd.php",

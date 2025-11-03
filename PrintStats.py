@@ -51,9 +51,10 @@ class PrintStats:
     @staticmethod
     def log_stats(rts: RunTimeStats) -> None:
         logging.info(
-            f"Running for {time.time() - rts.start_time:.2f}s, "
+            f"Running for {(time.time() - rts.start_time)/3600:.2f}h, "
             f"Total bans: {rts.bans}, "
-            f"Whitelisted IPs: {', '.join(ip for ips in rts.ip_whitelist.values() for ip in ips)}"
+            f"Whitelisted IPs: {', '.join(host + '/' + ip for host, ips in rts.ip_whitelist.items() for ip in ips)}"
+
         )
         counter = 10
         for path in sorted(rts.inter_domain.path, key=lambda p: rts.inter_domain.path[p].total_count(), reverse=True):

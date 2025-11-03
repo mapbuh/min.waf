@@ -26,6 +26,7 @@ class Config:
         self.log_file_path: str = ""
         self.good_bots: dict[str, list[str]] = {}
         self.bad_bots: dict[str, list[str]] = {}
+        self.ignore_extensions: list[str] = []
 
     def load(self, filepath: str) -> None:
         with open(filepath, "r") as f:

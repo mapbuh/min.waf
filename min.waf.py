@@ -118,7 +118,7 @@ def tail_f_read(config: Config, rts: RunTimeStats):
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
                 refresh_cb(config, rts)
-            if (time.time() - logstats_ts) > config.time_frame:
+            if (time.time() - logstats_ts) > 3600:
                 logstats_ts = time.time()
                 logstats_cb(rts)
         if rotated:
@@ -153,7 +153,8 @@ def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
                     f"on path {log_line.host}{log_line.path} with status "
                     f"{log_line.http_status}")
                 return
-
+    if log_line.path.endswith(tuple(config.ignore_extensions)):
+        return
     ip_data = rts.ip_stats.get(log_line.ip)
     if ip_data is None:
         ip_data = IpData(
@@ -200,6 +201,7 @@ def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
     else:
         Checks.log_probes(log_line, line, rts)
 
+    # logging.info(f"Parsed line: {line.strip()}")
     # store data
     rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
     if config.url_stats and url_data is not None:

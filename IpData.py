@@ -57,14 +57,15 @@ class IpData:
     @property
     def http_status_bad(self) -> float:
         good_statuses: list[int] = [200, 206, 499, 304]
-        ignore_statuses: list[int] = [301, 302, 303, 304, 307, 308]
-        static_files: list[str] = [".css", ".js", ".jpg", ".jpeg", ".png",
-                                   ".gif", ".svg", ".ico", ".woff", ".woff2",
-                                   ".ttf", ".eot", ".otf", ".mp4", ".webm",
-                                   ".ogg", ".mp3", ".wav", ".txt", ".xml",
-                                   ".json"]
-        dangerous_files: list[str] = [".php", ".asp", ".aspx",
-                                      ".jsp", ".exe", ".dll", ".bin", ".sh", ".cgi", ".pl"]
+        # ignore_statuses: list[int] = [301, 302, 303, 304, 307, 308]
+        ignore_statuses: list[int] = [304]
+        static_files: list[str] = [
+            ".css", ".js", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".otf",
+            ".mp4", ".webm", ".ogg", ".mp3", ".wav", ".txt", ".xml", ".json"
+        ]
+        dangerous_files: list[str] = [
+            ".php", ".asp", ".aspx", ".jsp", ".exe", ".dll", ".bin", ".sh", ".cgi", ".pl", ".sql", ".py"
+        ]
 
         unique_paths: set[str] = set()
         score = 0.0
