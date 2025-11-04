@@ -28,6 +28,7 @@ class Config:
         self.bad_bots: dict[str, list[str]] = {}
         self.ignore_extensions: list[str] = []
         self.proxy: bool = False
+        self.known_attacks: list[str] = []
 
     def load(self, filepath: str) -> None:
         with open(filepath, "r") as f:

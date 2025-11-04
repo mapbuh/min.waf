@@ -1,3 +1,4 @@
+from Config import Config
 from LogLine import LogLine
 from KnownAttacks import KnownAttacks
 from IpData import IpData
@@ -7,8 +8,8 @@ from RunTimeStats import RunTimeStats
 
 class Checks:
     @staticmethod
-    def bad_req(log_line: LogLine) -> str | None:
-        if KnownAttacks.is_known(log_line.path) and (log_line.http_status == 404 or log_line.http_status == 500):
+    def bad_req(config: Config, log_line: LogLine) -> str | None:
+        if KnownAttacks.is_known(config, log_line.path) and (log_line.http_status == 404 or log_line.http_status == 500):
             return f"Known attack detected: {log_line.path}"
         return None
 

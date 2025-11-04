@@ -13,41 +13,14 @@ Ideally we'll identify new patterns by:
 """
 
 
+from Config import Config
+
+
 class KnownAttacks:
     @staticmethod
-    def is_known(req: str) -> bool:
-        known_attacks = [
-            "admin.php",
-            "xmlrpc.php",
-            "wp-login.php",
-            "wp-admin",
-            "wp-content/plugins/hellopress/wp_filemanager.php",
-            "wp-includes/wlwmanifest.xml",
-            "phpinfo.php",
-            "install.php",
-            "/.env",
-            "/.git/config",
-            ".git/credentials",
-            # from inter_domain stas
-            "/lv.php",
-            "/nc4.php",
-            "/ioxi-o.php",
-            "/222.php",
-            "/alphanew.php",
-            "/atomlib.php",
-            "/enclass.php",
-            "/vee.php",
-            "/system_log.php",
-            "/lock360.php",
-            "/abcd.php",
-            "/gifclass.php",
-            "/alfa.php",
-            # from copilot suggestions
-            "/shell.php",
-            "/cmd.php",
-        ]
+    def is_known(config: Config, req: str) -> bool:
         req_lower = req.lower()
-        for attack in known_attacks:
+        for attack in config.known_attacks:
             if attack.lower() in req_lower:
                 return True
         return False
