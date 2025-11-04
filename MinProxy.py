@@ -67,51 +67,57 @@ class MinProxy:
             'ip': '',
             'req_ts': int(time.time()),
         }
-        buffer: str = ''
+        buffer: bytes = b''
         buff_size = 8192
         while True:
             data = request_socket.recv(buff_size)
             if not data:
                 # eof
                 break
-            buffer += data.decode()
-            if buffer.find('\r\n\r\n') != -1 or buffer.find('\n\n') != -1 and len(buffer) > 1:
+            buffer += data
+            if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1 and len(buffer) > 1:
                 break
-        host_match = re.search(r'^Host: (.*)$', buffer, re.MULTILINE)
+        buffer_decoded = buffer.decode(errors='ignore')
+        host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
         if host_match:
             log_line_data['host'] = host_match.group(1).strip().split(':')[0]
-        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer, re.MULTILINE)
+        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
         if ip_match:
             log_line_data['ip'] = ip_match.group(1).strip()
             if log_line_data['ip'] in self.rts.banned_ips.keys():
                 logging.info(f"Connection from banned IP {log_line_data['ip']} rejected")
                 request_socket.close()
                 return
-        ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer, re.MULTILINE)
+        ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
         if ua_match:
             log_line_data['ua'] = ua_match.group(2).strip()
-        referer_match = re.search(r'^(Referer|referer): (.*)$', buffer, re.MULTILINE)
+        referer_match = re.search(r'^(Referer|referer): (.*)$', buffer_decoded, re.MULTILINE)
         if referer_match:
             log_line_data['referer'] = referer_match.group(2).strip()
-        match = re.search(r'^MinWaf-Dest: (.*)$', buffer, re.MULTILINE)
+        match = re.search(r'^MinWaf-Dest: (.*)$', buffer_decoded, re.MULTILINE)
         if match and waf_dest == '':
             waf_dest = match.group(1).strip()
             response_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             host, sep, port_str = waf_dest.partition(':')
             port = int(port_str) if sep else 80
-            response_socket.connect((host, port))
-            response_socket.send(buffer.encode())
+            try:
+                response_socket.connect((host, port))
+            except ConnectionRefusedError:
+                logging.info(f"Connection to WAF destination {waf_dest} refused")
+                request_socket.close()
+                return
+            response_socket.send(buffer)
             # Efficiently extract the first line (request line) without splitlines()
-            first_line_end = buffer.find('\n')
+            first_line_end = buffer_decoded.find('\n')
             if first_line_end == -1:
-                request_line = buffer.strip()
+                request_line = buffer_decoded.strip()
             else:
-                request_line = buffer[:first_line_end].strip()
+                request_line = buffer_decoded[:first_line_end].strip()
             log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
         else:
-            logging.info("MinWaf-Dest header found but no WAF destination set")
-            logging.info(f"{log_line_data} address={addr}")
-            logging.info(f">>{buffer}<<")
+            #  logging.info("MinWaf-Dest header found but no WAF destination set")
+            #  logging.info(f"{log_line_data} address={addr}")
+            #  logging.info(f">>{buffer_decoded}<<")
             return
         header_end = False
         http_status: str = '200'
