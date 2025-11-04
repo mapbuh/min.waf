@@ -112,7 +112,7 @@ def tail_f_read(config: Config, rts: RunTimeStats):
                         partial_line = ""
                     else:
                         logging.debug(f"Partial line: {line}")
-                        partial_line = line
+                        partial_line += line
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
                 refresh_cb(config, rts)
@@ -126,6 +126,11 @@ def tail_f_read(config: Config, rts: RunTimeStats):
 
 
 def parse_line(config: Config, rts: RunTimeStats, line: str) -> str:
+    """
+    Parse a single log line using Nginx log format columns and process it.
+
+    Returns the status of the processed line or STATUS_UNKNOWN if parsing fails.
+    """
     log_line = Nginx.parse_log_line(line, config.columns)
     if not log_line:
         return Nginx.STATUS_UNKNOWN
@@ -190,7 +195,7 @@ def main(
             # Exit parent process
             sys.exit(0)
     init(configObj, rtsObj)
-    if proxy:
+    if configObj.proxy:
         MinProxy(configObj, rtsObj)
     else:
         tail_f(configObj, rtsObj)
