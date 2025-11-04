@@ -139,17 +139,24 @@ class MinProxy:
                             response_socket.send(data)
                         else:
                             if not header_end:
-                                headers = data.partition(b'\r\n\r\n')[0].decode("iso-8859-1")
+                                headers = data.partition(b'\r\n\r\n')[0].decode(errors='ignore')
                                 _, http_status, _ = headers.splitlines()[0].split(' ', 2)
                                 header_end = True
                                 log_line_data['http_status'] = int(http_status)
+                                log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
+                                log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
+                                log_line = LogLine(log_line_data)
+                                if Nginx.process_line(self.config, self.rts, log_line, "") == Nginx.STATUS_BANNED:
+                                    # just enough for iptables to register the ban
+                                    time.sleep(3)
+                                    # and confuse them, in case it hasn't propagated yet
+                                    request_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
+                                    request_socket.close()
+                                    response_socket.close()
+                                    return
                             request_socket.send(data)
                 except ConnectionResetError:
                     request_socket.close()
                     response_socket.close()
                     break
-        log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
-        log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
-        log_line = LogLine(log_line_data)
-        Nginx.process_line(self.config, self.rts, log_line, "")
         return

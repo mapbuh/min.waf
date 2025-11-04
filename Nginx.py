@@ -15,6 +15,11 @@ from ExpiringList import ExpiringList
 
 
 class Nginx:
+    STATUS_BANNED = 'banned'
+    STATUS_OK = 'ok'
+    STATUS_SLOW = 'slow'
+    STATUS_UNKNOWN = 'unknown'
+
     @staticmethod
     def config_get() -> dict[str, str]:
         log_file_path = ""
@@ -129,18 +134,18 @@ class Nginx:
         return path
 
     @staticmethod
-    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str) -> None:
+    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str) -> str:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
         rts.lines_parsed += 1
         if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
-            return
+            return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line):
-            return
+            return Nginx.STATUS_OK
         if reason := Bots.bad_bot(config, log_line):
             IpTables.ban(log_line.ip, rts, config, None, reason)
-            return
+            return Nginx.STATUS_BANNED
         if config.whitelist_triggers.get(log_line.host):
             for trigger in config.whitelist_triggers[log_line.host]:
                 if log_line.path == trigger['path'] and str(log_line.http_status) == str(trigger['http_status']):
@@ -151,9 +156,9 @@ class Nginx:
                         f"{log_line.ip} whitelisted due to trigger "
                         f"on path {log_line.host}{log_line.path} with status "
                         f"{log_line.http_status}")
-                    return
+                    return Nginx.STATUS_OK
         if log_line.path.endswith(tuple(config.ignore_extensions)):
-            return
+            return Nginx.STATUS_OK
         ip_data = rts.ip_stats.get(log_line.ip)
         if ip_data is None:
             ip_data = IpData(
@@ -195,8 +200,9 @@ class Nginx:
             ua_data.raw_lines.append(log_line.req_ts, line)
             ua_data.log_lines.append(log_line.req_ts, log_line)
 
-        if reason := Checks.bad_req(log_line):
+        if reason := Checks.bad_req(config, log_line):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+            return Nginx.STATUS_BANNED
         else:
             Checks.log_probes(log_line, line, rts)
 
@@ -210,3 +216,5 @@ class Nginx:
 
         if reason := Checks.bad_stats(log_line, ip_data):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+            return Nginx.STATUS_BANNED
+        return Nginx.STATUS_OK

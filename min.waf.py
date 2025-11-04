@@ -81,6 +81,7 @@ def refresh_cb(config: Config, rts: RunTimeStats) -> None:
 
 
 def logstats_cb(rts: RunTimeStats) -> None:
+    # Periodically log runtime statistics for monitoring and analysis
     PrintStats.log_stats(rts)
 
 
@@ -112,7 +113,6 @@ def tail_f_read(config: Config, rts: RunTimeStats):
                     else:
                         logging.debug(f"Partial line: {line}")
                         partial_line = line
-            logging.info(f"waiting for {time.time() - refresh_ts} > {config.refresh_time} until refresh")
             if (time.time() - refresh_ts) > config.refresh_time:
                 refresh_ts = time.time()
                 refresh_cb(config, rts)
@@ -125,10 +125,10 @@ def tail_f_read(config: Config, rts: RunTimeStats):
             return
 
 
-def parse_line(config: Config, rts: RunTimeStats, line: str) -> None:
+def parse_line(config: Config, rts: RunTimeStats, line: str) -> str:
     log_line = Nginx.parse_log_line(line, config.columns)
     if not log_line:
-        return
+        return Nginx.STATUS_UNKNOWN
     return Nginx.process_line(config, rts, log_line, line)
 
 
