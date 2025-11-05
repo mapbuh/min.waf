@@ -17,8 +17,8 @@ class MinProxy:
         self.config = config
         self.rts = rts
 
-        host = '127.0.0.1'
-        port = 9009
+        host = config.proxy_listen_host
+        port = config.proxy_listen_port
         s = socket.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))

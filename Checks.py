@@ -14,8 +14,8 @@ class Checks:
         return None
 
     @staticmethod
-    def bad_stats(log_line: LogLine, ip_data: IpData) -> str | None:
-        if ip_data.http_status_bad >= 0.51:
+    def bad_stats(config: Config, log_line: LogLine, ip_data: IpData) -> str | None:
+        if ip_data.http_status_bad >= config.http_status_bad_threshold:
             return f"Bad http_status ratio: {ip_data.http_status_bad:.2f} from {ip_data.request_count} reqs"
         if ip_data.steal_time < -30 and ip_data.avail_time > 10:
             logging.debug(

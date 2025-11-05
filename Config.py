@@ -29,6 +29,9 @@ class Config:
         self.ignore_extensions: list[str] = []
         self.proxy: bool = False
         self.known_attacks: list[str] = []
+        self.http_status_bad_threshold: float = 0.51
+        self.proxy_listen_host: str = "127.0.0.1"
+        self.proxy_listen_port: int = 9009
 
     def load(self, filepath: str) -> None:
         with open(filepath, "r") as f:

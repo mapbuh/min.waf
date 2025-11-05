@@ -214,7 +214,7 @@ class Nginx:
         if config.ua_stats and ua_data is not None:
             rts.ua_stats.create(ts=log_line.req_ts, key=log_line.ua, value=ua_data)
 
-        if reason := Checks.bad_stats(log_line, ip_data):
+        if reason := Checks.bad_stats(config, log_line, ip_data):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
             return Nginx.STATUS_BANNED
         return Nginx.STATUS_OK
