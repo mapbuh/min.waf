@@ -65,17 +65,21 @@ class MinProxy:
             'proto': '',
             'host': '',
             'ip': '',
-            'req_ts': int(time.time()),
+            'req_ts': time.time(),
         }
         buffer: bytes = b''
         buff_size = 8192
+        data: bytes = b''
         while True:
-            data = request_socket.recv(buff_size)
+            try:
+                data = request_socket.recv(buff_size)
+            except ConnectionResetError:
+                request_socket.close()
             if not data:
                 # eof
                 break
             buffer += data
-            if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1 and len(buffer) > 1:
+            if (buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1) and len(buffer) > 1:
                 break
         buffer_decoded = buffer.decode(errors='ignore')
         host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
@@ -113,7 +117,13 @@ class MinProxy:
                 request_line = buffer_decoded.strip()
             else:
                 request_line = buffer_decoded[:first_line_end].strip()
-            log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
+            try:
+                log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
+            except ValueError:
+                logging.warning(f"Malformed request line: '{request_line}' from {addr}")
+                request_socket.close()
+                response_socket.close()
+                return
         else:
             #  logging.info("MinWaf-Dest header found but no WAF destination set")
             #  logging.info(f"{log_line_data} address={addr}")
@@ -150,11 +160,20 @@ class MinProxy:
                                     # just enough for iptables to register the ban
                                     time.sleep(3)
                                     # and confuse them, in case it hasn't propagated yet
-                                    request_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
+                                    try:
+                                        request_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
+                                    except (BrokenPipeError, OSError):
+                                        logging.warning("Failed to send response to client: socket may be closed")
                                     request_socket.close()
                                     response_socket.close()
                                     return
-                            request_socket.send(data)
+                            try:
+                                request_socket.send(data)
+                            except (BrokenPipeError, OSError):
+                                logging.warning("Failed to send data to client: socket may be closed")
+                                request_socket.close()
+                                response_socket.close()
+                                break
                 except ConnectionResetError:
                     request_socket.close()
                     response_socket.close()
