@@ -163,14 +163,13 @@ class MinProxy:
                                     try:
                                         request_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
                                     except (BrokenPipeError, OSError):
-                                        logging.warning("Failed to send response to client: socket may be closed")
+                                        pass
                                     request_socket.close()
                                     response_socket.close()
                                     return
                             try:
                                 request_socket.send(data)
                             except (BrokenPipeError, OSError):
-                                logging.warning("Failed to send data to client: socket may be closed")
                                 request_socket.close()
                                 response_socket.close()
                                 break
