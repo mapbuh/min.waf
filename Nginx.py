@@ -13,7 +13,6 @@ from Checks import Checks
 from IpTables import IpTables
 from ExpiringList import ExpiringList
 
-
 class Nginx:
     STATUS_BANNED = 'banned'
     STATUS_OK = 'ok'
@@ -138,11 +137,17 @@ class Nginx:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
+#        if log_line.host == 'neshtastnik.com' and log_line.ip == '77.70.85.10':
+#            logging.info(log_line)
+
         rts.lines_parsed += 1
         if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line):
             return Nginx.STATUS_OK
+        if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
+            IpTables.ban(log_line.ip, rts, config, None, f"IP in blacklist requesting {log_line.req}")
+            return Nginx.STATUS_BANNED
         if reason := Bots.bad_bot(config, log_line):
             IpTables.ban(log_line.ip, rts, config, None, reason)
             return Nginx.STATUS_BANNED

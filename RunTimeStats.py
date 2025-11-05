@@ -1,3 +1,5 @@
+import logging
+from IpBlacklist import IpBlacklist
 from IpData import IpData
 from ExpiringDict import ExpiringDict
 from Config import Config
@@ -61,20 +63,20 @@ class IDS:
 
 
 class RunTimeStats:
-    start_time: float = 0
-    lines_parsed: int = 0
-    ip_whitelist: dict[str, list[str]]
-    banned_ips: dict[str, float]
-    ip_stats: ExpiringDict[IpData]
-    url_stats: ExpiringDict[IpData]
-    ua_stats: ExpiringDict[IpData]
-    bans: int = 0
-    inter_domain: IDS = IDS()
-
     def __init__(self, config: Config) -> None:
-        self.ip_whitelist = {}
-        self.banned_ips = {}
-        self.ip_stats = ExpiringDict[IpData](config.time_frame)
-        self.url_stats = ExpiringDict[IpData](config.time_frame)
-        self.ua_stats = ExpiringDict[IpData](config.time_frame)
-        self.bans = 0
+        self.start_time: float = 0
+        self.lines_parsed: int = 0
+        self.ip_whitelist: dict[str, list[str]] = {}
+        self.banned_ips: dict[str, float] = {}
+        self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
+        self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
+        self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
+        self.bans: int = 0
+        self.inter_domain: IDS = IDS()
+
+    def init_ip_blacklist(self, config: Config) -> None:
+        logging.info("Initializing IP blacklist")
+        if config.ip_blacklist:
+            self.ip_blacklist = IpBlacklist(config)
+        else:
+            self.ip_blacklist = None

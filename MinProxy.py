@@ -66,6 +66,8 @@ class MinProxy:
             'host': '',
             'ip': '',
             'req_ts': time.time(),
+            'upstream_response_time': 1.23,
+            'logged': False,
         }
         buffer: bytes = b''
         buff_size = 8192
@@ -119,8 +121,13 @@ class MinProxy:
                 request_line = buffer_decoded[:first_line_end].strip()
             try:
                 log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
+                log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
             except ValueError:
                 logging.warning(f"Malformed request line: '{request_line}' from {addr}")
+                log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
+                log_line = LogLine(log_line_data)
+                log_line_data['logged'] = True
+                Nginx.process_line(self.config, self.rts, log_line, "")
                 request_socket.close()
                 response_socket.close()
                 return
@@ -128,6 +135,10 @@ class MinProxy:
             #  logging.info("MinWaf-Dest header found but no WAF destination set")
             #  logging.info(f"{log_line_data} address={addr}")
             #  logging.info(f">>{buffer_decoded}<<")
+            log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
+            log_line = LogLine(log_line_data)
+            log_line_data['logged'] = True
+            Nginx.process_line(self.config, self.rts, log_line, "")
             return
         header_end = False
         http_status: str = '200'
@@ -153,11 +164,11 @@ class MinProxy:
                                 _, http_status, _ = headers.splitlines()[0].split(' ', 2)
                                 header_end = True
                                 log_line_data['http_status'] = int(http_status)
-                                log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
                                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                                 log_line = LogLine(log_line_data)
+                                log_line_data['logged'] = True
                                 if Nginx.process_line(self.config, self.rts, log_line, "") == Nginx.STATUS_BANNED:
-                                    # just enough for iptables to register the ban
+                                    # just enough for iptables to register the ban and annoy the attacker a bit
                                     time.sleep(3)
                                     # and confuse them, in case it hasn't propagated yet
                                     try:
@@ -177,4 +188,8 @@ class MinProxy:
                     request_socket.close()
                     response_socket.close()
                     break
+        if not log_line_data['logged']:
+            log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
+            log_line = LogLine(log_line_data)
+            Nginx.process_line(self.config, self.rts, log_line, "")
         return

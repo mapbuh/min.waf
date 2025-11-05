@@ -43,6 +43,7 @@ def init(config: Config, rts: RunTimeStats) -> None:
     logging.getLogger("inotify").setLevel(logging.WARNING)
     rts.start_time = time.time()
     logging.info("min.waf started")
+    rts.init_ip_blacklist(config)
 
 
 def lockfile_remove(config: Config) -> None:
@@ -78,6 +79,8 @@ def refresh_cb(config: Config, rts: RunTimeStats) -> None:
     if not config.background and not config.silent and not config.proxy:
         PrintStats.print_stats(config, rts)
     IpTables.unban_expired(rts, config)
+    if config.ip_blacklist and rts.ip_blacklist:
+        rts.ip_blacklist.refresh_list()
 
 
 def logstats_cb(rts: RunTimeStats) -> None:
