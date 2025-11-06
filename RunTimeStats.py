@@ -1,4 +1,5 @@
 import logging
+
 from IpBlacklist import IpBlacklist
 from IpData import IpData
 from ExpiringDict import ExpiringDict
@@ -73,6 +74,7 @@ class RunTimeStats:
         self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
         self.bans: int = 0
         self.inter_domain: IDS = IDS()
+        self.ip_blacklist: IpBlacklist | None = None
 
     def init_ip_blacklist(self, config: Config) -> None:
         logging.info("Initializing IP blacklist")

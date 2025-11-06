@@ -1,15 +1,16 @@
+import logging
+import re
+import select
 import socket
 import threading
-import select
-import re
 import time
-import logging
+
 from Config import Config
 from IpTables import IpTables
+from LogLine import LogLine
 from Nginx import Nginx
 from PrintStats import PrintStats
 from RunTimeStats import RunTimeStats
-from LogLine import LogLine
 
 
 class MinProxy:
@@ -34,7 +35,7 @@ class MinProxy:
                 t = threading.Thread(target=self.proxy_handle_client, args=(conn, addr))
                 t.start()
                 all_threads.append(t)
-                for t in all_threads:
+                for t in all_threads[:]:
                     if not t.is_alive():
                         t.join(1)
                         all_threads.remove(t)
@@ -44,6 +45,9 @@ class MinProxy:
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
                     PrintStats.log_stats(rts)
+                    if config.ip_blacklist and rts.ip_blacklist:
+                        rts.ip_blacklist.refresh_list()
+
 
         except KeyboardInterrupt:
             logging.info("Stopped by Ctrl+C")
@@ -163,7 +167,11 @@ class MinProxy:
                                 headers = data.partition(b'\r\n\r\n')[0].decode(errors='ignore')
                                 _, http_status, _ = headers.splitlines()[0].split(' ', 2)
                                 header_end = True
-                                log_line_data['http_status'] = int(http_status)
+                                try:
+                                    log_line_data['http_status'] = int(http_status)
+                                except ValueError:
+                                    logging.warning(f"Malformed HTTP status: '{http_status}' in response from {addr}")
+                                    log_line_data['http_status'] = 0
                                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                                 log_line = LogLine(log_line_data)
                                 log_line_data['logged'] = True

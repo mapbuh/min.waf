@@ -2,18 +2,18 @@
 
 import atexit
 import click
+import inotify.adapters  # type: ignore
 import logging
 import os
 import sys
 import time
-import inotify.adapters  # type: ignore
 
+from Config import Config
+from IpTables import IpTables
 from MinProxy import MinProxy
 from Nginx import Nginx
 from PrintStats import PrintStats
 from RunTimeStats import RunTimeStats
-from IpTables import IpTables
-from Config import Config
 
 
 def at_exit(config: Config, rts: RunTimeStats) -> None:

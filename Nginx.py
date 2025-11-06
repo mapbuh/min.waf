@@ -1,17 +1,19 @@
 import datetime
-import subprocess
-import re
-import sys
-import shlex
 import logging
-from IpData import IpData
-from LogLine import LogLine
-from Config import Config
-from RunTimeStats import RunTimeStats
+import re
+import shlex
+import subprocess
+import sys
+
 from Bots import Bots
 from Checks import Checks
-from IpTables import IpTables
+from Config import Config
 from ExpiringList import ExpiringList
+from IpData import IpData
+from IpTables import IpTables
+from LogLine import LogLine
+from RunTimeStats import RunTimeStats
+
 
 class Nginx:
     STATUS_BANNED = 'banned'
@@ -39,7 +41,8 @@ class Nginx:
             flags=re.IGNORECASE | re.DOTALL,
         )
         if output is None:
-            print(f"Could not find log_format {log_file_format} in nginx config")
+            print(
+                f"Could not find log_format {log_file_format} in nginx config")
             sys.exit(1)
         log_format = ""
         for line in output.group(1).splitlines():
@@ -102,7 +105,8 @@ class Nginx:
             ua = columns[config_columns["http_user_agent"]]
             referer = columns[config_columns["http_referer"]]
         except (IndexError, KeyError):
-            logging.error(f"Could not parse log line (missing columns): {line.strip()}")
+            logging.error(
+                f"Could not parse log line (missing columns): {line.strip()}")
             return
         if upstream_response_time == "-":
             upstream_response_time = 0.01
@@ -146,7 +150,8 @@ class Nginx:
         if Bots.good_bot(config, log_line):
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
-            IpTables.ban(log_line.ip, rts, config, None, f"IP in blacklist requesting {log_line.req}")
+            IpTables.ban(log_line.ip, rts, config, None,
+                         f"IP in blacklist requesting {log_line.req}")
             return Nginx.STATUS_BANNED
         if reason := Bots.bad_bot(config, log_line):
             IpTables.ban(log_line.ip, rts, config, None, reason)
@@ -215,9 +220,11 @@ class Nginx:
         # store data
         rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
         if config.url_stats and url_data is not None:
-            rts.url_stats.create(ts=log_line.req_ts, key=log_line.path, value=url_data)
+            rts.url_stats.create(ts=log_line.req_ts,
+                                 key=log_line.path, value=url_data)
         if config.ua_stats and ua_data is not None:
-            rts.ua_stats.create(ts=log_line.req_ts, key=log_line.ua, value=ua_data)
+            rts.ua_stats.create(ts=log_line.req_ts,
+                                key=log_line.ua, value=ua_data)
 
         if reason := Checks.bad_stats(config, log_line, ip_data):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)

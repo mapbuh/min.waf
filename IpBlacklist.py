@@ -4,6 +4,7 @@ import time
 from functools import lru_cache
 from Config import Config
 
+
 class IpBlacklist:
 
     def __init__(self, config: Config) -> None:
