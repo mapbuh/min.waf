@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-from glob import glob
 import click
-from Nginx import Nginx
 import gzip
+
+from glob import glob
 from LogLine import LogLine
+from Nginx import Nginx
 
 data: dict[str, int] = {}
 

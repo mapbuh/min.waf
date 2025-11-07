@@ -9,7 +9,7 @@ from LogLine import LogLine
 data: dict[str, dict[str, dict[str, int]]] = {}
 
 
-def analyze(log_line: LogLine|None):
+def analyze(log_line: LogLine | None):
     global data
     if log_line is None or int(log_line.http_status) != 404:
         return

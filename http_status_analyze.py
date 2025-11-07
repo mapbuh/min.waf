@@ -8,7 +8,8 @@ from LogLine import LogLine
 
 data: dict[int, dict[str, int]] = {}
 
-def analyze(log_line: LogLine|None):
+
+def analyze(log_line: LogLine | None):
     global data
     if log_line is None:
         return
@@ -17,6 +18,7 @@ def analyze(log_line: LogLine|None):
     if log_line.path not in data[log_line.http_status]:
         data[log_line.http_status][log_line.path] = 0
     data[log_line.http_status][log_line.path] += 1
+
 
 def data_print():
     global data
@@ -41,6 +43,7 @@ def data_write():
         for status, paths in data.items():
             for path, count in sorted(paths.items(), key=lambda item: item[1], reverse=True):
                 f.write(f"{status},{path},{count}\n")
+
 
 @click.command()
 def main():

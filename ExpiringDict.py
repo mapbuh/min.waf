@@ -3,6 +3,7 @@ from typing import Any, Generic, TypeVar
 
 T = TypeVar('T')
 
+
 class ExpiringDict(Generic[T]):
 
     def __init__(self, expiration_time: int):
