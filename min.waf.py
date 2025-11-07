@@ -18,7 +18,7 @@ from RunTimeStats import RunTimeStats
 
 def at_exit(config: Config, rts: RunTimeStats) -> None:
     lockfile_remove(config)
-    IpTables.clear()
+    IpTables.clear(config)
     logging.info(f"min.waf stopped after {time.time() - rts.start_time:.2f}s")
 
 
@@ -33,7 +33,7 @@ def init(config: Config, rts: RunTimeStats) -> None:
             sys.exit(1)
 
     lockfile_init(config)
-    IpTables.init()
+    IpTables.init(config)
     atexit.register(at_exit, config, rts)
     logging.basicConfig(
         format="%(message)s",
@@ -78,7 +78,7 @@ def lockfile_init(config: Config) -> None:
 def refresh_cb(config: Config, rts: RunTimeStats) -> None:
     if not config.background and not config.silent and not config.proxy:
         PrintStats.print_stats(config, rts)
-    IpTables.unban_expired(rts, config)
+    IpTables.unban_expired(config, rts)
     if config.ip_blacklist and rts.ip_blacklist:
         rts.ip_blacklist.refresh_list()
 

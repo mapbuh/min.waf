@@ -40,6 +40,7 @@ class Config:
         self.steal_ratio: float = 0.3
         self.ip_blacklist: str = ''
         self.ip_blacklist_refresh_time: int = 3600
+        self.iptables_chain: str = "MINWAF"
 
     def load(self, filepath: str) -> None:
         with open(filepath, "r") as f:
