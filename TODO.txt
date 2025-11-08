@@ -1,6 +1,3 @@
-- include something like https://github.com/bitwire-it/ipblocklist?tab=readme-ov-file
- (https://raw.githubusercontent.com/bitwire-it/ipblocklist/refs/heads/main/ip-list.txt)
-- catch signals - graceful stop, reread conf on hup, dump stats on usr1
-- use captcha instead of blocking
+- use captcha before blocking
 - remove tools, use command parameter
 - organize in folders, move ip_blacklist.txt somewhere

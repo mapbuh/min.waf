@@ -1,5 +1,6 @@
 import os
 import atexit
+import signal
 import time
 import logging
 import sys
@@ -16,18 +17,35 @@ class MinWaf:
         self.rts: RunTimeStats = RunTimeStats(config)
 
     def init(self) -> None:
-        self.lockfile_init()
-        IpTables.init(self.config)
         logging.basicConfig(
             format="%(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
             level=logging.INFO if self.config.silent else logging.DEBUG,
         )
         logging.getLogger("inotify").setLevel(logging.WARNING)
-        self.rts.start_time = time.time()
-        logging.info("min.waf started")
+        self.lockfile_init()
+        IpTables.init(self.config)
         self.rts.init_ip_blacklist(self.config)
         atexit.register(self.at_exit)
+        self.rts.start_time = time.time()
+        logging.info("min.waf started")
+        signal.signal(signal.SIGTERM, self.signal_handler)
+        signal.signal(signal.SIGUSR1, self.signal_handler)
+        signal.signal(signal.SIGHUP, self.signal_handler)
+
+    def signal_handler(self, signum: int, frame: object) -> None:
+        if signum == signal.SIGTERM:
+            logging.info(f"Received signal {signum}, exiting...")
+            self.at_exit()
+            sys.exit(0)
+        elif signum == signal.SIGUSR1:
+            logging.info(f"Received signal {signum}, dumping stats...")
+            self.logstats_cb()
+        elif signum == signal.SIGHUP:
+            logging.info(f"Received signal {signum}, reloading config...")
+            self.config.load(self.config.config_file_path)
+        else:
+            logging.warning(f"Received unknown signal {signum}, ignoring...")
 
     def at_exit(self) -> None:
         self.lockfile_remove()

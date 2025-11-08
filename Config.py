@@ -3,6 +3,9 @@ import yaml
 
 class Config:
     def __init__(self) -> None:
+        # when reloading config, these keys will not be changed
+        self.immutables: list[str] = []
+        self.config_file_path: str = ""
         self.columns: dict[str, int] = {
             "remote_addr": -1,
             "host": -1,
@@ -43,8 +46,11 @@ class Config:
         self.iptables_chain: str = "MINWAF"
 
     def load(self, filepath: str) -> None:
+        self.config_file_path = filepath
         with open(filepath, "r") as f:
             data = yaml.safe_load(f)
             for key, value in data.items():
                 if hasattr(self, key):
+                    if key in self.immutables:
+                        continue
                     setattr(self, key, value)
