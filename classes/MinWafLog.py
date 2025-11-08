@@ -4,10 +4,9 @@ import time
 import inotify.adapters  # type: ignore
 import logging
 
-from Config import Config
-from MinWaf import MinWaf
-from Nginx import Nginx
-
+from classes.Config import Config
+from classes.Nginx import Nginx
+from classes.MinWaf import MinWaf
 
 class MinWafLog(MinWaf):
     def __init__(self, config: Config) -> None:

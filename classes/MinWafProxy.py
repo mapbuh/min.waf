@@ -1,6 +1,6 @@
-from Config import Config
-from MinProxy import MinProxy
-from MinWaf import MinWaf
+from classes.Config import Config
+from classes.MinProxy import MinProxy
+from classes.MinWaf import MinWaf
 
 
 class MinWafProxy(MinWaf):

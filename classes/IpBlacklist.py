@@ -2,7 +2,7 @@ import os
 import requests
 import time
 from functools import lru_cache
-from Config import Config
+from classes.Config import Config
 
 
 class IpBlacklist:

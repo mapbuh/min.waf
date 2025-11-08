@@ -5,10 +5,10 @@ import time
 import logging
 import sys
 
-from Config import Config
-from RunTimeStats import RunTimeStats
-from IpTables import IpTables
-from PrintStats import PrintStats
+from classes.Config import Config
+from classes.RunTimeStats import RunTimeStats
+from classes.IpTables import IpTables
+from classes.PrintStats import PrintStats
 
 
 class MinWaf:

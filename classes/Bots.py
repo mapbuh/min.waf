@@ -1,6 +1,5 @@
-from LogLine import LogLine
-from Config import Config
-
+from classes.Config import Config
+from classes.LogLine import LogLine
 
 class Bots:
 

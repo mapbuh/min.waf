@@ -13,7 +13,7 @@ Ideally we'll identify new patterns by:
 """
 
 
-from Config import Config
+from classes.Config import Config
 
 
 class KnownAttacks:

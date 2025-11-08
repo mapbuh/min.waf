@@ -1,9 +1,9 @@
 import logging
 
-from IpBlacklist import IpBlacklist
-from IpData import IpData
-from ExpiringDict import ExpiringDict
-from Config import Config
+from classes.IpBlacklist import IpBlacklist
+from classes.IpData import IpData
+from classes.ExpiringDict import ExpiringDict
+from classes.Config import Config
 
 
 class IDSHost:

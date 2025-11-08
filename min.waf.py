@@ -2,10 +2,9 @@
 
 import click
 
-from Config import Config
-from MinWafLog import MinWafLog
-from MinWafProxy import MinWafProxy
-
+from classes.Config import Config
+from classes.MinWafLog import MinWafLog
+from classes.MinWafProxy import MinWafProxy
 
 @click.command()
 @click.option("--config", default="/etc/min.waf.yaml", help="Path to config file")

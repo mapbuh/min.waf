@@ -5,12 +5,12 @@ import socket
 import threading
 import time
 
-from Config import Config
-from IpTables import IpTables
-from LogLine import LogLine
-from Nginx import Nginx
-from PrintStats import PrintStats
-from RunTimeStats import RunTimeStats
+from classes.Config import Config
+from classes.IpTables import IpTables
+from classes.LogLine import LogLine
+from classes.Nginx import Nginx
+from classes.PrintStats import PrintStats
+from classes.RunTimeStats import RunTimeStats
 
 
 class MinProxy:

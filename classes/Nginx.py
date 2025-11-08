@@ -5,14 +5,14 @@ import shlex
 import subprocess
 import sys
 
-from Bots import Bots
-from Checks import Checks
-from Config import Config
-from ExpiringList import ExpiringList
-from IpData import IpData
-from IpTables import IpTables
-from LogLine import LogLine
-from RunTimeStats import RunTimeStats
+from classes.Bots import Bots
+from classes.Checks import Checks
+from classes.Config import Config
+from classes.ExpiringList import ExpiringList
+from classes.IpData import IpData
+from classes.IpTables import IpTables
+from classes.LogLine import LogLine
+from classes.RunTimeStats import RunTimeStats
 
 
 class Nginx:

@@ -1,10 +1,10 @@
-from Config import Config
-from LogLine import LogLine
-from KnownAttacks import KnownAttacks
-from IpData import IpData
 import logging
-from RunTimeStats import RunTimeStats
 
+from classes.Config import Config
+from classes.LogLine import LogLine
+from classes.KnownAttacks import KnownAttacks
+from classes.IpData import IpData
+from classes.RunTimeStats import RunTimeStats
 
 class Checks:
     @staticmethod

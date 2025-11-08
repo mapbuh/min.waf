@@ -1,6 +1,6 @@
 from typing import Any
-from ExpiringList import ExpiringList
-from LogLine import LogLine
+from classes.ExpiringList import ExpiringList
+from classes.LogLine import LogLine
 
 
 class IpData:

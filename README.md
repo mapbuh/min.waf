@@ -9,6 +9,7 @@ min.waf is a simple firewall that will detect http probing and flooding and will
 1. Can be used with nginx with proxy_pass
 2. Can be used to read access.log in real time
 3. Can read external list of IP addresses to ban at the moment they make request
+4. Support whitelisting triggers: when authorized access is detected to certain url (HTTP status 200), the requester address is added to whitelist for that certain vhost
 
 ## Prerequisites
 

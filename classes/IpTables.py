@@ -1,9 +1,9 @@
 import subprocess
-from RunTimeStats import RunTimeStats
-from ExpiringList import ExpiringList
 import time
 import logging
-from Config import Config
+from classes.Config import Config
+from classes.RunTimeStats import RunTimeStats
+from classes.ExpiringList import ExpiringList
 
 
 class IpTables:

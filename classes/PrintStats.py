@@ -1,8 +1,8 @@
 import logging
 import time
 import sys
-from RunTimeStats import RunTimeStats
-from Config import Config
+from classes.RunTimeStats import RunTimeStats
+from classes.Config import Config
 
 
 class PrintStats:
