@@ -20,7 +20,7 @@ class MinWaf:
         logging.basicConfig(
             format="%(message)s",
             datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.INFO if self.config.silent else logging.DEBUG,
+            level=logging.DEBUG if self.config.debug else logging.INFO,
         )
         logging.getLogger("inotify").setLevel(logging.WARNING)
         self.lockfile_init()
@@ -79,7 +79,7 @@ class MinWaf:
             f.write(str(os.getpid()))
 
     def refresh_cb(self) -> None:
-        if not self.config.background and not self.config.silent and not self.config.proxy:
+        if self.config.mode == "interactive":
             PrintStats.print_stats(self.config, self.rts)
         IpTables.unban_expired(self.config, self.rts)
         if self.config.ip_blacklist and self.rts.ip_blacklist:

@@ -12,7 +12,7 @@ from Nginx import Nginx
 class MinWafLog(MinWaf):
     def __init__(self, config: Config) -> None:
         super().__init__(config)
-        if self.config.background:
+        if self.config.mode == "log2ban":
             print("Running in background mode")
             pid = os.fork()
             if pid > 0:

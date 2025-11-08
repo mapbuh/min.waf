@@ -17,20 +17,18 @@ class Config:
             "http_user_agent": -1,
         }
         self.time_frame = 300
+        self.debug: bool = False
         self.ban_time = 600
-        self.background = False
         self.url_stats = False
         self.ua_stats = False
         self.lockfile: str = "/var/run/min.waf.pid"
         self.detail_lines: int = 12
         self.refresh_time: int = 60
         self.whitelist_triggers: dict[str, list[dict[str, str]]] = {}
-        self.silent: bool = False
         self.log_file_path: str = ""
         self.good_bots: dict[str, list[str]] = {}
         self.bad_bots: dict[str, list[str]] = {}
         self.ignore_extensions: list[str] = []
-        self.proxy: bool = False
         self.known_attacks: list[str] = []
         self.http_status_bad_threshold: float = 0.51
         self.proxy_listen_host: str = "127.0.0.1"
@@ -44,6 +42,7 @@ class Config:
         self.ip_blacklist: str = ''
         self.ip_blacklist_refresh_time: int = 3600
         self.iptables_chain: str = "MINWAF"
+        self.mode: str = "proxy"  # or "log2ban"
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
