@@ -43,6 +43,5 @@ def main(
     min_waf.init()
     min_waf.run()
 
-
 if __name__ == "__main__":
     main()

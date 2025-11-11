@@ -103,9 +103,9 @@ class MinProxy:
         referer_match = re.search(r'^(Referer|referer): (.*)$', buffer_decoded, re.MULTILINE)
         if referer_match:
             log_line_data['referer'] = referer_match.group(2).strip()
-        match = re.search(r'^MinWaf-Dest: (.*)$', buffer_decoded, re.MULTILINE)
+        match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE)
         if match and waf_dest == '':
-            waf_dest = match.group(1).strip()
+            waf_dest = match.group(2).strip()
             response_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             host, sep, port_str = waf_dest.partition(':')
             port = int(port_str) if sep else 80
