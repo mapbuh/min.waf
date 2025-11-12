@@ -18,7 +18,7 @@ class ExpiringDict(Generic[T]):
         self.ts[key] = ts
 
     def delete(self, key: str) -> None:
-        if not key in self.data:
+        if key not in self.data:
             raise KeyError(f"{key} does not exist")
         del self.data[key]
         del self.ts[key]

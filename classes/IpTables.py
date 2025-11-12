@@ -40,10 +40,30 @@ class IpTables:
         rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([
-                "ip6tables", "-A", config.iptables_chain, "-s", ip_address, "-p", "tcp", "--dport", "80", "-j", "TARPIT",
+                "ip6tables",
+                "-A",
+                config.iptables_chain,
+                "-s",
+                ip_address,
+                "-p",
+                "tcp",
+                "--dport",
+                "80",
+                "-j",
+                "TARPIT",
             ])
             subprocess.run([
-                "ip6tables", "-A", config.iptables_chain, "-s", ip_address, "-p", "tcp", "--dport", "443", "-j", "TARPIT"
+                "ip6tables",
+                "-A",
+                config.iptables_chain,
+                "-s",
+                ip_address,
+                "-p",
+                "tcp",
+                "--dport",
+                "443",
+                "-j",
+                "TARPIT"
             ])
             return
         subprocess.run([

@@ -6,6 +6,7 @@ from classes.KnownAttacks import KnownAttacks
 from classes.IpData import IpData
 from classes.RunTimeStats import RunTimeStats
 
+
 class Checks:
     @staticmethod
     def bad_req(config: Config, log_line: LogLine) -> str | None:

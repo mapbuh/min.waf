@@ -8,6 +8,7 @@ from classes.Config import Config
 from classes.Nginx import Nginx
 from classes.MinWaf import MinWaf
 
+
 class MinWafLog(MinWaf):
     def __init__(self, config: Config) -> None:
         super().__init__(config)

@@ -1,6 +1,7 @@
 from classes.Config import Config
 from classes.LogLine import LogLine
 
+
 class Bots:
 
     @staticmethod
