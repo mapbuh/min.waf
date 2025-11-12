@@ -90,8 +90,8 @@ known_attacks:
 # from copilot suggestions
 - "/shell.php"
 - "/cmd.php"
-ip_blacklist_refresh_time: 7200
-ip_blacklist: https://raw.githubusercontent.com/bitwire-it/ipblocklist/refs/heads/main/ip-list.txt
+# ip_blacklist_refresh_time: 7200
+# ip_blacklist: https://example.com/blacklist/ip-list.txt
 # less important
 detail_lines: 12
 refresh_time: 1
