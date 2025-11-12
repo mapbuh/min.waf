@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
+from classes.LogLine import LogLine
+from classes.Nginx import Nginx
 from glob import glob
 import click
-from Nginx import Nginx
 import gzip
-from LogLine import LogLine
 
 data: dict[str, dict[str, dict[str, int]]] = {}
 
