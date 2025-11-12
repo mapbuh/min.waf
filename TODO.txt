@@ -1,3 +1,5 @@
 - use captcha before blocking
 - remove tools, use command parameter
 - organize in folders, move ip_blacklist.txt somewhere
+- make the whitelist expiring
+- fork on external blacklist update
