@@ -1,0 +1,99 @@
+ban_time: 600
+lockfile: /var/run/min.waf.pid
+time_frame: 300
+proxy_listen_host: 127.0.0.1
+proxy_listen_port: 9009
+# whitelist specific ips, that are authenticated users or internal services
+whitelist_triggers:
+  example.com:
+  - http_status: '200'
+    path: /admin/dashboard
+  - http_status: '200'
+    path: /admin/reports/index
+  wordpress.example.com:
+  - http_status: '200'
+    path: /wp-admin/
+# do not evaluate requests for static files
+ignore_extensions:
+- .css
+- .js
+- .png
+- .jpg
+- .jpeg
+- .gif
+- .svg
+- .ico
+- .woff
+- .woff2
+- .ttf
+- .eot
+- .otf
+good_bots:
+  Ad.Min:
+    - 'https://ad.min.solutions'
+  Babbar:
+    - 'https://www.babbar.tech/crawler'
+  Bing:
+    - 'http://www.bing.com/bingbot.htm'
+  Facebook:
+    - 'https://developers.facebook.com/docs/sharing/webmasters/crawler'
+    - 'http://www.facebook.com/bot.html'
+    - 'http://www.facebook.com/externalhit_uatext.php'
+  Google:
+    - 'http://www.google.com/adsbot.html'
+    - 'http://www.google.com/bot.html'
+  Majestic:
+    - 'http://mj12bot.com/'
+  Monit:
+    - 'Monit/5.33.0'
+  SentryUptimeBot:
+    - 'http://docs.sentry.io/product/alerts/uptime-monitoring/'
+bad_bots:
+  Mozlila:
+    - 'Mozlila/5.0'
+  Python:
+    - 'python-urllib'
+    - 'python-requests'
+    - 'python-http'
+  Go-http-client:
+    - 'Go-http-client/'
+  'Redtail':
+    - 'libredtail-http'
+# requesting these result in immediate bans if http_status is 404 or 500
+known_attacks:
+- "admin.php"
+- "xmlrpc.php"
+- "wp-login.php"
+- "wp-admin"
+- "wp-content/plugins/hellopress/wp_filemanager.php"
+- "wp-includes/wlwmanifest.xml"
+- "phpinfo.php"
+- "install.php"
+- "/.env"
+- "/.git/config"
+- ".git/credentials"
+# from inter_domain stas
+- "/lv.php"
+- "/nc4.php"
+- "/ioxi-o.php"
+- "/222.php"
+- "/alphanew.php"
+- "/atomlib.php"
+- "/enclass.php"
+- "/vee.php"
+- "/system_log.php"
+- "/lock360.php"
+- "/abcd.php"
+- "/gifclass.php"
+- "/alfa.php"
+- "wp-includes/ID3/license.txt"
+# from copilot suggestions
+- "/shell.php"
+- "/cmd.php"
+ip_blacklist_refresh_time: 7200
+ip_blacklist: https://raw.githubusercontent.com/bitwire-it/ipblocklist/refs/heads/main/ip-list.txt
+# less important
+detail_lines: 12
+refresh_time: 1
+ua_stats: true
+url_stats: true
