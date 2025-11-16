@@ -101,9 +101,9 @@ class IpTables:
             "iptables", "-A", config.iptables_chain, "-s", ip_address, "-p", "tcp", "--dport", "443", "-j", "DROP",
         ])
         if reason != "":
-            logging.info(f"{ip_address} banned for {config.ban_time}s - Reason: {reason}")
+            logging.debug(f"{ip_address} banned for {config.ban_time}s - Reason: {reason}")
         else:
-            logging.info(f"{ip_address} banned for {config.ban_time}s")
+            logging.debug(f"{ip_address} banned for {config.ban_time}s")
         if raw_lines is not None:
             for raw_line in raw_lines.values():
                 logging.debug(f"{raw_line}".strip())
@@ -129,4 +129,4 @@ class IpTables:
                     subprocess.run([
                         "iptables", "-D", config.iptables_chain, "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
                     ])
-                logging.info(f"{ip} unbanned after {config.ban_time}s")
+                logging.debug(f"{ip} unbanned after {config.ban_time}s")
