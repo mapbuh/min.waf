@@ -1,10 +1,9 @@
-import logging
 import os
 import pathlib
 import requests
 import time
-from functools import lru_cache
 from classes.Config import Config
+from functools import lru_cache
 
 
 class IpBlacklist:
@@ -18,15 +17,12 @@ class IpBlacklist:
 
     def refresh_list(self) -> None:
         if not self.is_file_recent(self.filename, self.config.ip_blacklist_refresh_time):
-            logging.info("blacklist downloading")
             self.download_file(self.config.ip_blacklist, self.filename)
         elif pathlib.Path(self.filename + ".downloaded").exists():
-            logging.info("blacklist downloaded")
             with open(self.filename, 'r') as f:
                 self.list = f.read().splitlines()
             pathlib.Path(self.filename + ".downloaded").unlink(missing_ok=True)
         elif not self.list:
-            logging.info("loaded, no check")
             with open(self.filename, 'r') as f:
                 self.list = f.read().splitlines()
 

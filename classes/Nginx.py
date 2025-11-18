@@ -151,7 +151,7 @@ class Nginx:
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
             IpTables.ban(log_line.ip, rts, config, None,
-                         f"IP in blacklist requesting {log_line.req}")
+                         reason=f"IP in blacklist requesting {log_line.req}", log_info=False)
             return Nginx.STATUS_BANNED
         if reason := Bots.bad_bot(config, log_line):
             IpTables.ban(log_line.ip, rts, config, None, reason)
