@@ -36,7 +36,7 @@ class Config:
         # wait at list this many seconds between first and last request
         self.steal_over_time: int = 10
         # if total stolen time is more than this, consider it stealing
-        self.steal_total: int = 1
+        self.steal_total: int = 10
         # if ratio of stolen/available time is more than this, consider it stealing
         self.steal_ratio: float = 0.3
         self.ip_blacklist: str = ''
