@@ -55,6 +55,7 @@ bad_bots:
     - 'python-urllib'
     - 'python-requests'
     - 'python-http'
+    - 'aiohttp/'
   Go-http-client:
     - 'Go-http-client/'
   'Redtail':
