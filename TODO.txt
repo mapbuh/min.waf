@@ -3,3 +3,4 @@
 - organize in folders, move ip_blacklist.txt somewhere
 - make the whitelist expiring
 - fork on external blacklist update
+- save stats for ua and request path when blocking
