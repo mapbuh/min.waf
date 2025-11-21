@@ -36,13 +36,16 @@ class IpBlacklist:
         if os.path.exists(filename + ".downloading"):
             return
         if os.fork() == 0:
-            pathlib.Path(filename + ".downloading").touch()
-            response = requests.get(url)
-            response.raise_for_status()  # Ensure we notice bad responses
-            with open(filename, 'wb') as f:
-                f.write(response.content)
+            try:
+                pathlib.Path(filename + ".downloading").touch()
+                response = requests.get(url)
+                response.raise_for_status()  # Ensure we notice bad responses
+                with open(filename, 'wb') as f:
+                    f.write(response.content)
+                    pathlib.Path(filename + ".downloading").unlink(missing_ok=True)
+                    pathlib.Path(filename + ".downloaded").touch()
+            except requests.exceptions.HTTPError:
                 pathlib.Path(filename + ".downloading").unlink(missing_ok=True)
-                pathlib.Path(filename + ".downloaded").touch()
             os._exit(0)
 
     @lru_cache(maxsize=1024)
