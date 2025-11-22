@@ -141,11 +141,8 @@ class Nginx:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
-#        if log_line.host == 'neshtastnik.com' and log_line.ip == '77.70.85.10':
-#            logging.info(log_line)
-
         rts.lines_parsed += 1
-        if log_line.ip in rts.ip_whitelist.get(log_line.host, []):
+        if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line):
             return Nginx.STATUS_OK
@@ -156,17 +153,8 @@ class Nginx:
         if reason := Bots.bad_bot(config, log_line):
             IpTables.ban(log_line.ip, rts, config, None, reason)
             return Nginx.STATUS_BANNED
-        if config.whitelist_triggers.get(log_line.host):
-            for trigger in config.whitelist_triggers[log_line.host]:
-                if log_line.path == trigger['path'] and str(log_line.http_status) == str(trigger['http_status']):
-                    if log_line.host not in rts.ip_whitelist:
-                        rts.ip_whitelist[log_line.host] = []
-                    rts.ip_whitelist[log_line.host].append(log_line.ip)
-                    logging.info(
-                        f"{log_line.ip} whitelisted due to trigger "
-                        f"on path {log_line.host}{log_line.path} with status "
-                        f"{log_line.http_status}")
-                    return Nginx.STATUS_OK
+        if rts.ip_whitelist.is_trigger(log_line.host, log_line.ip, log_line.path, log_line.http_status):
+            return Nginx.STATUS_OK
         if log_line.path.endswith(tuple(config.ignore_extensions)):
             return Nginx.STATUS_OK
         ip_data = rts.ip_stats.get(log_line.ip)

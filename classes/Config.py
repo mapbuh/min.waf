@@ -43,6 +43,7 @@ class Config:
         self.ip_blacklist_refresh_time: int = 3600
         self.iptables_chain: str = "MINWAF"
         self.mode: str = "proxy"  # or "log2ban"
+        self.whitelist_expiration: int = 36000 # 10 hours, a working day plus few hours
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath

@@ -53,8 +53,7 @@ class PrintStats:
         logging.info(
             f"Running for {(time.time() - rts.start_time)/3600:.2f}h, "
             f"Total bans: {rts.bans}, "
-            f"Whitelisted IPs: {', '.join(host + '/' + ip for host, ips in rts.ip_whitelist.items() for ip in ips)}"
-
+            f"Whitelisted IPs: {', '.join(host + '/' + ip for host, ips in rts.ip_whitelist.whitelist.items() for ip in ips.values())}"
         )
         counter = 10
         for path in sorted(rts.inter_domain.path, key=lambda p: rts.inter_domain.path[p].total_count(), reverse=True):
@@ -198,7 +197,7 @@ class PrintStats:
         output += "Banned: "
         output += ", ".join(ip for ip in rts.banned_ips.keys())
         output += "\nWhitelisted: "
-        output += ", ".join(host + "/" + ip for host, ips in rts.ip_whitelist.items() for ip in ips)
+        output += ", ".join(host + "/" + ip for host, ips in rts.ip_whitelist.whitelist.items() for ip in ips.values())
         output += "\n"
         output += f"Time taken to generate stats: {time.time() - start_time:.4f} seconds\n"
         print(output)

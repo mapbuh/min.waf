@@ -31,6 +31,10 @@ class ExpiringList(Generic[T]):
     def values(self) -> list[Any]:
         self.expire()
         return [val for _, val in self.data]
+    
+    def items(self) -> list[tuple[float, T]]:
+        self.expire()
+        return self.data
 
     def len(self) -> int:
         self.expire()

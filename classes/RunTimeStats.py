@@ -4,7 +4,7 @@ from classes.IpBlacklist import IpBlacklist
 from classes.IpData import IpData
 from classes.ExpiringDict import ExpiringDict
 from classes.Config import Config
-
+from classes.IpWhitelist import IpWhitelist
 
 class IDSHost:
     def __init__(self) -> None:
@@ -67,7 +67,7 @@ class RunTimeStats:
     def __init__(self, config: Config) -> None:
         self.start_time: float = 0
         self.lines_parsed: int = 0
-        self.ip_whitelist: dict[str, list[str]] = {}
+        self.ip_whitelist: IpWhitelist = IpWhitelist(config)
         self.banned_ips: dict[str, float] = {}
         self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
         self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
