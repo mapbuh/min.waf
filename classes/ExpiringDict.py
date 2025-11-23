@@ -26,7 +26,7 @@ class ExpiringDict(Generic[T]):
     def expire(self):
         current_time = time.time()
         for key in list(self.ts.keys()):
-            if self.ts[key] + self.expiration_time < current_time:
+            if key in self.ts and ((self.ts[key] + self.expiration_time) < current_time):
                 del self.data[key]
                 del self.ts[key]
 
