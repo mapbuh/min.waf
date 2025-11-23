@@ -13,6 +13,7 @@ class IpWhitelist:
         if not host in self.whitelist:
             return False
         if ip in self.whitelist[host].values():
+            self.whitelist[host].touch(ip)
             return True
         return False
     

@@ -14,6 +14,14 @@ class ExpiringList(Generic[T]):
 
     def __repr__(self) -> str:
         return f"ExpiringList({self.data})"
+    
+    def touch(self, value: T) -> None:
+        current_time = time.time()
+        for i, (_, val) in enumerate(self.data):
+            if val == value:
+                self.data[i] = (current_time, val)
+                break
+        self.expire()
 
     def append(self, ts: float | None, value: T) -> None:
         if ts is None:
