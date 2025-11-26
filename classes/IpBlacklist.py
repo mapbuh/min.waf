@@ -21,6 +21,7 @@ class IpBlacklist:
         elif pathlib.Path(self.filename + ".downloaded").exists():
             with open(self.filename, 'r') as f:
                 self.list = f.read().splitlines()
+                self.is_ip_blacklisted.cache_clear()
             pathlib.Path(self.filename + ".downloaded").unlink(missing_ok=True)
         elif not self.list:
             with open(self.filename, 'r') as f:

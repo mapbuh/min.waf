@@ -4,6 +4,7 @@ import signal
 import time
 import logging
 import sys
+import yappi
 
 from classes.Config import Config
 from classes.RunTimeStats import RunTimeStats
@@ -15,6 +16,7 @@ class MinWaf:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.rts: RunTimeStats = RunTimeStats(config)
+        # yappi.start()
 
     def init(self) -> None:
         logging.basicConfig(
@@ -50,6 +52,8 @@ class MinWaf:
     def at_exit(self) -> None:
         self.lockfile_remove()
         IpTables.clear(self.config)
+        # yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
+        # # yappi.get_thread_stats().print_all()
         logging.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:
