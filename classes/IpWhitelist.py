@@ -1,5 +1,8 @@
 from functools import lru_cache
+import ipaddress
 import logging
+import pathlib
+import re
 from classes.ExpiringList import ExpiringList
 from classes.Config import Config
 
@@ -7,11 +10,31 @@ class IpWhitelist:
     def __init__(self, config: Config) -> None:
         self.config = config
         self.whitelist: dict[str, ExpiringList[str]] = {}
+        self.whitelist_permanent: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        self.whitelist_load_permanent()
+
+    def whitelist_load_permanent(self) -> None:
+        if self.config.whitelist_permanent:
+            if pathlib.Path(self.config.whitelist_permanent).exists():
+                with open(self.config.whitelist_permanent, 'r') as f:
+                    for line in f:
+                        line = re.sub(r'\s+', '', line)
+                        line = re.sub(r'#.*$', '', line)
+                        if line:
+                            try:
+                                self.whitelist_permanent.append(ipaddress.ip_network(line))
+                            except ValueError:
+                                logging.warning(f"Invalid network in permanent whitelist: {line}")
+            else:
+                logging.warning(f"Permanent whitelist file {self.config.whitelist_permanent} not found.")
 
     @lru_cache(maxsize=1024)
     def is_whitelisted(self, host: str, ip: str) -> bool:
         if not host in self.whitelist:
             return False
+        for net in self.whitelist_permanent:
+            if ipaddress.ip_address(ip) in net:
+                return True
         if ip in self.whitelist[host].values():
             self.whitelist[host].touch(ip)
             return True

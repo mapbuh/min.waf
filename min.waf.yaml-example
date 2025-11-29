@@ -3,6 +3,7 @@ lockfile: /var/run/min.waf.pid
 time_frame: 300
 proxy_listen_host: 127.0.0.1
 proxy_listen_port: 9009
+whitelist_permanent: "/etc/min.waf.whitelist"
 # whitelist specific ips, that are authenticated users or internal services
 whitelist_triggers:
   example.com:

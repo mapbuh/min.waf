@@ -1,22 +1,23 @@
-import os
 import atexit
-import signal
-import time
 import logging
+import os
+import signal
 import sys
+import time
 import yappi
 
 from classes.Config import Config
-from classes.RunTimeStats import RunTimeStats
 from classes.IpTables import IpTables
 from classes.PrintStats import PrintStats
+from classes.RunTimeStats import RunTimeStats
 
 
 class MinWaf:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.rts: RunTimeStats = RunTimeStats(config)
-        # yappi.start()
+        if self.config.profiling:
+            yappi.start()
 
     def init(self) -> None:
         logging.basicConfig(
@@ -46,14 +47,18 @@ class MinWaf:
         elif signum == signal.SIGHUP:
             logging.info(f"Received signal {signum}, reloading config...")
             self.config.load(self.config.config_file_path)
+            self.rts.ip_whitelist.whitelist_load_permanent()
+            self.rts.init_ip_blacklist(self.config)
         else:
             logging.warning(f"Received unknown signal {signum}, ignoring...")
 
     def at_exit(self) -> None:
         self.lockfile_remove()
         IpTables.clear(self.config)
-        # yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
-        # # yappi.get_thread_stats().print_all()
+        if self.config.profiling:
+            yappi.stop()
+            yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
+            # yappi.get_thread_stats().print_all()
         logging.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:

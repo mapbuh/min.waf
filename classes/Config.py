@@ -45,6 +45,8 @@ class Config:
         self.mode: str = "proxy"  # or "log2ban"
         self.whitelist_expiration: int = 36000 # 10 hours, a working day plus few hours
         self.ban_with_log = False # ban in such way, that could inspect attacks
+        self.whitelist_permanent: str = "" # path to permanent whitelist file
+        self.profiling: bool = False # enable profiling with yappi
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
