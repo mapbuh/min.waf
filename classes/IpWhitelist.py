@@ -30,14 +30,21 @@ class IpWhitelist:
 
     @lru_cache(maxsize=1024)
     def is_whitelisted(self, host: str, ip: str) -> bool:
-        if not host in self.whitelist:
+        if ip.strip() == '':
+            logging.info(f"strange ip {host=} {ip=}")
             return False
         for net in self.whitelist_permanent:
             if ipaddress.ip_address(ip) in net:
                 return True
-        if ip in self.whitelist[host].values():
-            self.whitelist[host].touch(ip)
-            return True
+        if not host in self.whitelist:
+            return False
+        try:
+            if ip in self.whitelist[host].values():
+                self.whitelist[host].touch(ip)
+                return True
+        except ValueError as err:
+            logging.warning(f"Whitelist checking {ip}")
+            return False
         return False
     
     @lru_cache(maxsize=1024)
