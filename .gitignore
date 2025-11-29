@@ -4,3 +4,4 @@ ip_blacklist.txt
 min.waf.yaml
 min.waf.second.yaml
 min.waf.interactive.yaml
+.coverage
