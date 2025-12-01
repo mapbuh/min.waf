@@ -29,11 +29,11 @@ class LogLine:
         else:
             self._referer = self._referer.split("?")[0]
         self._log_line = str(data.get("log_line", ""))
-        self._host :str = self._req.split("/")[0]
+        self._host: str = self._req.split("/")[0]
         if "/" in self._req:
-            self._path :str = "/" + self._req.split("/", 1)[1]
+            self._path: str = "/" + self._req.split("/", 1)[1]
         else:
-            self._path :str = ""
+            self._path: str = ""
 
     def __repr__(self) -> str:
         return (f"LogLine(ip={self._ip}, upstream_response_time={self._upstream_response_time}, "

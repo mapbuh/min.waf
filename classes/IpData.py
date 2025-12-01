@@ -72,8 +72,10 @@ class IpData:
         count = 0
         for line in self._log_lines.values():
             if line.http_status in ignore_statuses:
+                print("ignoring", line.path, line.http_status)
                 continue
             if line.path in unique_paths:
+                print("duplicate path", line.path, line.http_status)
                 continue
             count += 1
             unique_paths.add(line.path)

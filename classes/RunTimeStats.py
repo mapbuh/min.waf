@@ -6,6 +6,7 @@ from classes.ExpiringDict import ExpiringDict
 from classes.Config import Config
 from classes.IpWhitelist import IpWhitelist
 
+
 class IDSHost:
     def __init__(self) -> None:
         self.http_statuses: dict[int, list[str]] = {}

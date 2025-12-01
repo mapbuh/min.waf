@@ -23,8 +23,6 @@ class KnownAttacks:
         if log_line.http_status not in [404, 500]:
             return False
         for attack in config.known_attacks:
-            print(attack.lower(), log_line.req.lower())
             if attack.lower() in log_line.req.lower():
-                print(f"Known attack detected: {log_line.req}")
                 return True
         return False

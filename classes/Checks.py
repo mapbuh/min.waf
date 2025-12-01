@@ -2,7 +2,6 @@ import logging
 
 from classes.Config import Config
 from classes.LogLine import LogLine
-from classes.KnownAttacks import KnownAttacks
 from classes.IpData import IpData
 from classes.RunTimeStats import RunTimeStats
 
@@ -14,7 +13,7 @@ class Checks:
             logging.info(f"Bad http_status ratio: {ip_data.http_status_bad:.2f} from {ip_data.request_count} reqs")
             return True
         return False
-    
+
     @staticmethod
     def bad_steal_ratio(config: Config, log_line: LogLine, ip_data: IpData) -> bool:
         if ip_data.steal_time < (-config.steal_total) and ip_data.avail_time > config.steal_over_time:
@@ -25,7 +24,7 @@ class Checks:
             )
             return False  # fixme when sure
         return False
-    
+
     @staticmethod
     def log_probes(log_line: LogLine, raw_line: str, rts: RunTimeStats) -> None:
         # TODO - make it LRU cache
