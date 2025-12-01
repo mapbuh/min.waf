@@ -37,28 +37,13 @@ class DummyRunTimeStats:
     def __init__(self):
         self.inter_domain = DummyInterDomain()
 
-"""
-def test_bad_stats():
+
+def test_bad_steal_ratio():
     config = DummyConfig()
     log_line = DummyLogLine()
-    ip_data = DummyIpData(http_status_bad=4)
-    assert Checks.bad_stats(config, log_line, ip_data) is True
+    ip_data = DummyIpData(steal_time=-15, avail_time=10, total_time=30, steal_ratio=0.6)
+    assert Checks.bad_steal_ratio(config, log_line, ip_data) is True
 
-    ip_data = DummyIpData(http_status_bad=2, steal_time=-11, avail_time=6, total_time=20, steal_ratio=0.5)
-    assert Checks.bad_stats(config, log_line, ip_data) is False
+    ip_data = DummyIpData(steal_time=-5, avail_time=4)
+    assert Checks.bad_steal_ratio(config, log_line, ip_data) is False
 
-    ip_data = DummyIpData(http_status_bad=2, steal_time=-5, avail_time=4)
-    assert Checks.bad_stats(config, log_line, ip_data) is False
-
-def test_log_probes():
-    log_line = DummyLogLine(http_status=404, path="/probe", host="host")
-    raw_line = "raw"
-    rts = DummyRunTimeStats()
-    Checks.log_probes(log_line, raw_line, rts)
-    assert rts.inter_domain.calls == [("/probe", "host", 404, "raw")]
-
-    log_line = DummyLogLine(http_status=200, path="/probe", host="host")
-    rts = DummyRunTimeStats()
-    Checks.log_probes(log_line, raw_line, rts)
-    assert rts.inter_domain.calls == []
-"""

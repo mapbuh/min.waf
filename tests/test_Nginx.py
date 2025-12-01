@@ -1,5 +1,6 @@
 import time
 import pytest
+from classes.Checks import Checks
 from classes.IpTables import IpTables
 from classes.LogLine import LogLine
 from classes.Nginx import Nginx
@@ -70,6 +71,9 @@ def test_parse_log_line(monkeypatch: pytest.MonkeyPatch):
         "Chrome/142.0.0.0 Mobile Safari/537.36"
     )
     assert log_line.referer == "www.example.com/vaucheri-za-prezhivyavane/adrenalin/vav-vazduha"
+    log_line = Nginx.parse_log_line("dsalkdajs lajdsladkjsa ldasjdl sakdj", columns)
+    assert log_line is None
+
 
 
 def test_process_line(monkeypatch: pytest.MonkeyPatch):
@@ -263,4 +267,13 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404,
         "ua": "Mozilla/5.0"
     })
+    assert Nginx.process_line(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    log_line = DummyLogLine({
+        "ip": "1.2.3.9",
+        "host": "example.com",
+        "req": "example.com/index.html",
+        "http_status": 200,
+        "ua": "Mozilla/5.0"
+    })
+    monkeypatch.setattr(Checks, "bad_steal_ratio", lambda config, log_line, ip_data: True)
     assert Nginx.process_line(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
