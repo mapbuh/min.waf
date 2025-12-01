@@ -110,7 +110,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
     # Patch dependencies
     # monkeypatch.setattr(Bots, "good_bot", lambda config, log_line: False)
     # monkeypatch.setattr(Bots, "bad_bot", lambda config, log_line: None)
-    monkeypatch.setattr(IpTables, "ban", lambda ip, rts, config, raw_lines=None, reason="", log_info=True: None)
+    monkeypatch.setattr(IpTables, "ban", lambda ip, rts, config, raw_lines=None: None)
     # monkeypatch.setattr(Checks, "bad_http_stats", lambda config, log_line, ip_data: None)
     # monkeypatch.setattr(Checks, "bad_steal_ratio", lambda config, log_line, ip_data: None)
     # monkeypatch.setattr(Checks, "log_probes", lambda log_line, line, rts: None)

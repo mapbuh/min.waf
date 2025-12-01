@@ -78,9 +78,7 @@ class IpTables:
         ip_address: str,
         rts: RunTimeStats,
         config: Config,
-        raw_lines: ExpiringList[str] | None = None,
-        reason: str = "",
-        log_info: bool = True,
+        raw_lines: ExpiringList[str] | None = None
     ) -> None:
         if ip_address in rts.banned_ips:
             rts.banned_ips[ip_address] = time.time()
@@ -101,19 +99,6 @@ class IpTables:
         subprocess.run([
             "iptables", "-A", config.iptables_chain, "-s", ip_address, "-p", "tcp", "--dport", "443", "-j", "DROP",
         ])
-        if reason != "":
-            if log_info:
-                logging.info(f"{ip_address} banned for {config.ban_time}s - Reason: {reason}")
-            else:
-                logging.debug(f"{ip_address} banned for {config.ban_time}s - Reason: {reason}")
-        else:
-            if log_info:
-                logging.info(f"{ip_address} banned for {config.ban_time}s")
-            else:
-                logging.debug(f"{ip_address} banned for {config.ban_time}s")
-        if raw_lines is not None:
-            for raw_line in raw_lines.values():
-                logging.debug(f"{raw_line}".strip())
         return
 
     @staticmethod

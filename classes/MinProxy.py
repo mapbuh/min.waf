@@ -49,13 +49,11 @@ class MinProxy:
                     PrintStats.log_stats(self.rts)
 
         except KeyboardInterrupt:
-            logging.info("Stopped by Ctrl+C")
+            pass
         finally:
             if s:
-                logging.debug("Closing server socket")
                 s.close()
             for t in all_threads:
-                logging.debug(f"Joining thread {t.name}")
                 t.join(1)
 
     def proxy_handle_client(self, request_socket: socket.socket, addr: tuple[str, int]) -> None:
@@ -135,9 +133,6 @@ class MinProxy:
                 response_socket.close()
                 return
         else:
-            #  logging.info("MinWaf-Dest header found but no WAF destination set")
-            #  logging.info(f"{log_line_data} address={addr}")
-            #  logging.info(f">>{buffer_decoded}<<")
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
             log_line_data['logged'] = True

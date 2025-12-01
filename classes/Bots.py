@@ -16,6 +16,6 @@ class Bots:
         for bot_name, bot_signatures in config.bad_bots.items():
             for bot_signature in bot_signatures:
                 if bot_signature.lower() in user_agent.lower():
-                    logging.debug(f"Bad bot detected: {bot_name} - {user_agent}")
+                    logging.info(f"Bad bot detected: {bot_name} - {user_agent}")
                     return True
         return False

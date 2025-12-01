@@ -146,8 +146,7 @@ class Nginx:
         if Bots.good_bot(config, log_line.ua):
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
-            IpTables.ban(log_line.ip, rts, config, None,
-                         reason=f"IP in blacklist requesting {log_line.req}", log_info=False)
+            IpTables.ban(log_line.ip, rts, config, None)
             return Nginx.STATUS_BANNED
         if Bots.bad_bot(config, log_line.ua):
             IpTables.ban(log_line.ip, rts, config)
@@ -202,8 +201,6 @@ class Nginx:
             return Nginx.STATUS_BANNED
         Checks.log_probes(log_line, line, rts)
 
-        # logging.info(f"Parsed line: {line.strip()}")
-        # store data
         rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
         if config.url_stats and url_data is not None:
             rts.url_stats.create(ts=log_line.req_ts,
