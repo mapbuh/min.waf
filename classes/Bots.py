@@ -1,4 +1,3 @@
-import logging
 from classes.Config import Config
 
 class Bots:
@@ -13,9 +12,8 @@ class Bots:
 
     @staticmethod
     def bad_bot(config: Config, user_agent: str) -> bool:
-        for bot_name, bot_signatures in config.bad_bots.items():
+        for _, bot_signatures in config.bad_bots.items():
             for bot_signature in bot_signatures:
                 if bot_signature.lower() in user_agent.lower():
-                    logging.info(f"Bad bot detected: {bot_name} - {user_agent}")
                     return True
         return False
