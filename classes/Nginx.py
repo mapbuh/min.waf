@@ -143,7 +143,7 @@ class Nginx:
         rts.lines_parsed += 1
         if log_line.ip.strip() == '':
             logging.info(f"strange ip {log_line.host=} {log_line.ip=}")
-            logging.info(f"line: {line}")
+            logging.info(f"line: {debug}")
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
