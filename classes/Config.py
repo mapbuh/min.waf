@@ -48,27 +48,26 @@ class Config:
     profiling: bool = False  # enable profiling with yappi
     static_files: list[str] = [
         ".css",
-        ".eot", 
+        ".eot",
         ".gif",
-        ".gif", 
         ".ico",
         ".jpeg",
-        ".jpg", 
+        ".jpg",
         ".js",
         ".json",
-        ".mp3", 
-        ".mp4", 
-        ".ogg", 
+        ".mp3",
+        ".mp4",
+        ".ogg",
         ".otf",
         ".png",
         ".svg",
-        ".ttf", 
-        ".txt", 
-        ".wav", 
-        ".webm", 
-        ".woff", 
-        ".woff2", 
-        ".xml", 
+        ".ttf",
+        ".txt",
+        ".wav",
+        ".webm",
+        ".woff",
+        ".woff2",
+        ".xml",
     ]
     dynamic_files: list[str] = [
         ".asp",
@@ -84,6 +83,7 @@ class Config:
         ".rb",
         ".sh",
     ]
+
     def __init__(self) -> None:
         pass
 

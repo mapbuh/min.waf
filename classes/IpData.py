@@ -3,6 +3,7 @@ from classes.ExpiringList import ExpiringList
 from classes.LogLine import LogLine
 from classes.Config import Config
 
+
 class IpData:
     _raw_lines: ExpiringList[str]
     _log_lines: ExpiringList[LogLine]
