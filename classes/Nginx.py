@@ -136,11 +136,14 @@ class Nginx:
         return path
 
     @staticmethod
-    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str) -> str:
+    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str, debug: str = "") -> str:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
         rts.lines_parsed += 1
+        if log_line.ip.strip() == '':
+            logging.info(f"strange ip {log_line.host=} {log_line.ip=}")
+            logging.info(f"line: {line}")
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):

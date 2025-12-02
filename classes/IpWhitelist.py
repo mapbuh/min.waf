@@ -6,6 +6,7 @@ import re
 from classes.ExpiringList import ExpiringList
 from classes.Config import Config
 
+
 class IpWhitelist:
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -36,17 +37,17 @@ class IpWhitelist:
         for net in self.whitelist_permanent:
             if ipaddress.ip_address(ip) in net:
                 return True
-        if not host in self.whitelist:
+        if host not in self.whitelist:
             return False
         try:
             if ip in self.whitelist[host].values():
                 self.whitelist[host].touch(ip)
                 return True
-        except ValueError as err:
+        except ValueError:
             logging.warning(f"Whitelist checking {ip}")
             return False
         return False
-    
+
     @lru_cache(maxsize=1024)
     # not passing log_line to make cache effective
     def is_trigger(self, host: str, ip: str, path: str, http_status: int) -> bool:
