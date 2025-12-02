@@ -90,8 +90,7 @@ class MinProxy:
             log_line_data['host'] = host_match.group(1).strip().split(':')[0]
         if not log_line_data['host'] or str(log_line_data['host']).strip() == '':
             logging.warning(f"No Host header in request from {addr}")
-            request_socket.close()
-            return
+            logging.debug(f"Request headers:\n{buffer_decoded}")
         ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
         if ip_match:
             log_line_data['ip'] = ip_match.group(1).strip()
