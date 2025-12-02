@@ -25,16 +25,12 @@ def main(
     configObj.load(config)
     if url_stats is not None:
         configObj.url_stats = url_stats
-        configObj.immutables.append("url_stats")
     if ua_stats is not None:
         configObj.ua_stats = ua_stats
-        configObj.immutables.append("ua_stats")
     if log2ban is not None:
         configObj.mode = "log2ban"
-        configObj.immutables.append("mode")
     if interactive is not None:
         configObj.mode = 'interactive'
-        configObj.immutables.append("mode")
 
     min_waf: MinWafLog | MinWafProxy
     if configObj.mode == "log2ban" or configObj.mode == "interactive":
