@@ -1,6 +1,7 @@
 from typing import Any
 from classes.ExpiringList import ExpiringList
 from classes.LogLine import LogLine
+from classes.Config import Config
 
 
 class IpData:
@@ -59,13 +60,6 @@ class IpData:
         good_statuses: list[int] = [200, 206, 499, 304]
         # ignore_statuses: list[int] = [301, 302, 303, 304, 307, 308]
         ignore_statuses: list[int] = [304]
-        static_files: list[str] = [
-            ".css", ".js", ".jpg", ".jpeg", ".png", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf", ".eot", ".otf",
-            ".mp4", ".webm", ".ogg", ".mp3", ".wav", ".txt", ".xml", ".json"
-        ]
-        dangerous_files: list[str] = [
-            ".php", ".asp", ".aspx", ".jsp", ".exe", ".dll", ".bin", ".sh", ".cgi", ".pl", ".sql", ".py"
-        ]
 
         unique_paths: set[str] = set()
         score = 0.0
@@ -79,11 +73,11 @@ class IpData:
             unique_paths.add(line.path)
             if line.http_status in good_statuses:
                 continue
-            for ext in static_files:
+            for ext in Config.static_files:
                 if line.path.endswith(ext):
                     score += 0.1
                     break
-            for ext in dangerous_files:
+            for ext in Config.dynamic_files:
                 if line.path.endswith(ext):
                     score += 2.0
                     break

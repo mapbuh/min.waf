@@ -9,6 +9,7 @@ PIDFile=/run/run/min.waf.pid
 KillSignal=SIGINT
 Restart=on-failure
 RestartPreventExitStatus=0 255
+LimitNOFile=65536
 
 [Install]
 WantedBy=multi-user.target
