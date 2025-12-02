@@ -44,7 +44,7 @@ def test_ban(monkeypatch):
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = DummyConfig()
     rts = DummyRunTimeStats()
-    IpTables.ban("1.2.3.4", rts, config, reason="test", log_info=True)
+    IpTables.ban("1.2.3.4", rts, config)
     assert "1.2.3.4" in rts.banned_ips
     assert rts.bans == 1
     assert any("iptables" in c[0] for c in calls)

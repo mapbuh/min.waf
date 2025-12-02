@@ -13,14 +13,16 @@ Ideally we'll identify new patterns by:
 """
 
 
+from classes.LogLine import LogLine
 from classes.Config import Config
 
 
 class KnownAttacks:
     @staticmethod
-    def is_known(config: Config, req: str) -> bool:
-        req_lower = req.lower()
+    def is_known(config: Config, log_line: LogLine) -> bool:
+        if log_line.http_status not in [404, 500]:
+            return False
         for attack in config.known_attacks:
-            if attack.lower() in req_lower:
+            if attack.lower() in log_line.req.lower():
                 return True
         return False

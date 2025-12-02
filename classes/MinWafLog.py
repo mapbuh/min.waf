@@ -55,7 +55,6 @@ class MinWafLog(MinWaf):
                             self.parse_line(partial_line + line)
                             partial_line = ""
                         else:
-                            logging.debug(f"Partial line: {line}")
                             partial_line += line
                 if (time.time() - refresh_ts) > self.config.refresh_time:
                     refresh_ts = time.time()

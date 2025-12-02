@@ -12,27 +12,28 @@ class LogLine:
                 - "upstream_response_time": The response time from the upstream server.
                 - "req_ts": The request timestamp.
                 - "http_status": The HTTP status code of the response.
-                - "req": The request string.
+                - "req": The request with domain.
                 - "ua": The user agent string.
                 - "referer": The referer URL.
                 - "log_line": The raw log line.
-                - "host": The host header value.
-                - "path": The request path.
         """
         self._ip = str(data.get("ip", ""))
         self._upstream_response_time = float(data.get("upstream_response_time", "0.0"))
         self._req_ts = int(data.get("req_ts", time.time()))
-        self._http_status = int(data.get("http_status", 200))
+        self._http_status: int = int(data.get("http_status", 200))
         self._req = str(data.get("req", ""))
         self._ua = str(data.get("ua", ""))
-        self._referer = str(data.get("referer", ""))
+        self._referer: str = str(data.get("referer", ""))
         if "://" in self._referer:
             self._referer = self._referer.split("://")[1].split("?")[0]
         else:
             self._referer = self._referer.split("?")[0]
         self._log_line = str(data.get("log_line", ""))
-        self._host = str(data.get("host", ""))
-        self._path = str(data.get("path", ""))
+        self._host: str = self._req.split("/")[0]
+        if "/" in self._req:
+            self._path: str = "/" + self._req.split("/", 1)[1]
+        else:
+            self._path: str = ""
 
     def __repr__(self) -> str:
         return (f"LogLine(ip={self._ip}, upstream_response_time={self._upstream_response_time}, "

@@ -11,6 +11,7 @@ from classes.Config import Config
 from classes.ExpiringList import ExpiringList
 from classes.IpData import IpData
 from classes.IpTables import IpTables
+from classes.KnownAttacks import KnownAttacks
 from classes.LogLine import LogLine
 from classes.RunTimeStats import RunTimeStats
 
@@ -131,8 +132,6 @@ class Nginx:
         try:
             path = request.split(" ")[1].split("?")[0]
         except IndexError:
-            # "20.65.193.163" _ [18/Oct/2025:04:23:16 +0300] "MGLNDD_144.76.163.188_443" 400 157 0 309 "-" "-"
-            # 0.122 "-" "US" "-" 1541953 1 2025-10-18T04:23:16+03:00
             path = request.split("?")[0]
         return path
 
@@ -144,14 +143,15 @@ class Nginx:
         rts.lines_parsed += 1
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip):
             return Nginx.STATUS_OK
-        if Bots.good_bot(config, log_line):
+        if Bots.good_bot(config, log_line.ua):
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
-            IpTables.ban(log_line.ip, rts, config, None,
-                         reason=f"IP in blacklist requesting {log_line.req}", log_info=False)
+            IpTables.ban(log_line.ip, rts, config, None)
+            logging.debug(f"ban: {log_line.ip}; Found in blacklist")
             return Nginx.STATUS_BANNED
-        if reason := Bots.bad_bot(config, log_line):
-            IpTables.ban(log_line.ip, rts, config, None, reason)
+        if Bots.bad_bot(config, log_line.ua):
+            IpTables.ban(log_line.ip, rts, config)
+            logging.info(f"ban: {log_line.ip}; Bad bot detected: {log_line.ua}")
             return Nginx.STATUS_BANNED
         if rts.ip_whitelist.is_trigger(log_line.host, log_line.ip, log_line.path, log_line.http_status):
             return Nginx.STATUS_OK
@@ -198,14 +198,12 @@ class Nginx:
             ua_data.raw_lines.append(log_line.req_ts, line)
             ua_data.log_lines.append(log_line.req_ts, log_line)
 
-        if reason := Checks.bad_req(config, log_line):
-            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+        if KnownAttacks.is_known(config, log_line):
+            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+            logging.info(f"Ban: {log_line.ip}; Known attack detected: {log_line.req}")
             return Nginx.STATUS_BANNED
-        else:
-            Checks.log_probes(log_line, line, rts)
+        Checks.log_probes(log_line, line, rts)
 
-        # logging.info(f"Parsed line: {line.strip()}")
-        # store data
         rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
         if config.url_stats and url_data is not None:
             rts.url_stats.create(ts=log_line.req_ts,
@@ -214,7 +212,10 @@ class Nginx:
             rts.ua_stats.create(ts=log_line.req_ts,
                                 key=log_line.ua, value=ua_data)
 
-        if reason := Checks.bad_stats(config, log_line, ip_data):
-            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines, reason)
+        if Checks.bad_http_stats(config, log_line, ip_data):
+            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+            return Nginx.STATUS_BANNED
+        if Checks.bad_steal_ratio(config, log_line, ip_data):
+            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
             return Nginx.STATUS_BANNED
         return Nginx.STATUS_OK
