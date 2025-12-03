@@ -144,7 +144,7 @@ class Nginx:
             logging.debug(f"empty request: {line}")
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
-        if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip):
+        if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
             return Nginx.STATUS_OK

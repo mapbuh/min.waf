@@ -1,5 +1,5 @@
 from classes.Config import Config
-from classes.MinProxy import MinProxy
+from classes.Proxy import MinProxy
 from classes.MinWaf import MinWaf
 
 

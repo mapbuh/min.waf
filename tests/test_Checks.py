@@ -16,7 +16,6 @@ class DummyConfig(Config):
 class DummyLogLine(LogLine):
     def __init__(self, path: str = "/attack", http_status: int = 404, ip: str = "1.2.3.4", host: str = "host"):
         super().__init__({path: path, "http_status": http_status, "ip": ip, "host": host})
-        print(self.path)
 
 class DummyIpData:
     def __init__(self, http_status_bad=0, request_count=10, steal_time=0, avail_time=0, total_time=0, steal_ratio=0):

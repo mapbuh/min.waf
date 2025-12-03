@@ -28,7 +28,7 @@ class MinWaf:
         logging.getLogger("inotify").setLevel(logging.WARNING)
         self.lockfile_init()
         IpTables.init(self.config)
-        self.rts.init_ip_blacklist(self.config)
+        self.rts.load()
         atexit.register(self.at_exit)
         self.rts.start_time = time.time()
         logging.info("min.waf started")
@@ -47,8 +47,7 @@ class MinWaf:
         elif signum == signal.SIGHUP:
             logging.info(f"Received signal {signum}, reloading config...")
             self.config.load(self.config.config_file_path)
-            self.rts.ip_whitelist.whitelist_load_permanent()
-            self.rts.init_ip_blacklist(self.config)
+            self.rts.load()
         else:
             logging.warning(f"Received unknown signal {signum}, ignoring...")
 

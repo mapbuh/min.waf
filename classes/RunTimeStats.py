@@ -66,6 +66,7 @@ class IDS:
 
 class RunTimeStats:
     def __init__(self, config: Config) -> None:
+        self.config = config
         self.start_time: float = 0
         self.lines_parsed: int = 0
         self.ip_whitelist: IpWhitelist = IpWhitelist(config)
@@ -77,9 +78,17 @@ class RunTimeStats:
         self.inter_domain: IDS = IDS()
         self.ip_blacklist: IpBlacklist | None = None
 
-    def init_ip_blacklist(self, config: Config) -> None:
+    def load(self) -> None:
+        self.init_ip_blacklist()
+        self.init_ip_whitelist()
+
+    def init_ip_whitelist(self) -> None:
+        logging.info("Initializing IP whitelist")
+        self.ip_whitelist.whitelist_load_permanent()
+
+    def init_ip_blacklist(self) -> None:
         logging.info("Initializing IP blacklist")
-        if config.ip_blacklist:
-            self.ip_blacklist = IpBlacklist(config)
+        if self.config.ip_blacklist:
+            self.ip_blacklist = IpBlacklist(self.config)
         else:
             self.ip_blacklist = None
