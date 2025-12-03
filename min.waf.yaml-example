@@ -14,6 +14,11 @@ whitelist_triggers:
   wordpress.example.com:
   - http_status: '200'
     path: /wp-admin/
+bots:
+  - Google:
+    user_agent: Goot
+    ip_ranges_url: https://developers.google.com/static/search/apis/ipranges/googlebot.json
+    action: allow
 good_bots:
   Ad.Min:
     - 'https://ad.min.solutions'

@@ -1,3 +1,4 @@
+import requests
 import yaml
 
 
@@ -82,6 +83,13 @@ class Config:
         ".rb",
         ".sh",
     ]
+    bots: dict[str, dict[str, str]] = {
+        'Google': {
+            'user_agent': 'Google',
+            'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
+            'action': 'allow',
+        },
+    }
 
     def __init__(self) -> None:
         pass
@@ -95,3 +103,6 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
+        for bot, bot_data in self.bots.items():
+            if 'ip_ranges_url' in bot_data:
+                Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
