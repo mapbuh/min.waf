@@ -86,12 +86,6 @@ class MinWaf:
         with open(self.config.lockfile, "w") as f:
             f.write(str(os.getpid()))
 
-    def refresh_cb(self) -> None:
-        if self.config.mode == "interactive":
-            PrintStats.print_stats(self.config, self.rts)
-        IpTables.unban_expired(self.config, self.rts)
-        if self.config.ip_blacklist and self.rts.ip_blacklist:
-            self.rts.ip_blacklist.refresh_list()
 
     def logstats_cb(self) -> None:
         # Periodically log runtime statistics for monitoring and analysis
