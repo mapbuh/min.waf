@@ -46,7 +46,7 @@ cp min.waf.service /etc/systemd/system
 ```
 5. Copy or make symlink to min.waf.py in /usr/sbin
 ```
-ln -s /root/min.waf/min.waf.py /usr/sbin/min.waf.py
+ln -s /usr/local/min.waf/min.waf.py /usr/sbin/min.waf.py
 ```
 6. Enable and start the service.
 ```
