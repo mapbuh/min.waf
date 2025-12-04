@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import click
 
 from classes.Config import Config
@@ -31,6 +32,11 @@ def main(
         configObj.mode = "log2ban"
     if interactive is not None:
         configObj.mode = 'interactive'
+    logging.basicConfig(
+        format="%(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        level=logging.DEBUG if configObj.debug else logging.INFO,
+    )
 
     min_waf: MinWafLog | MinWafProxy
     if configObj.mode == "log2ban" or configObj.mode == "interactive":
