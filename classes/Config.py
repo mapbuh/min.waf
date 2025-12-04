@@ -103,6 +103,9 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
+        print(self.bots)
+        for bot in self.bots:
+            print(self.bots[bot])
         for bot, bot_data in self.bots.items():
             if 'ip_ranges_url' in bot_data:
                 Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
