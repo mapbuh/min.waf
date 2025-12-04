@@ -4,9 +4,8 @@ import hashlib
 import hmac
 import json
 import os
-import pathlib
 import sys
-import time
+import subprocess
 
 SECRET_KEY = '#ffSVv4NohftC~YY'
 
@@ -17,18 +16,18 @@ def error_log(msg: str) -> None:
 
 def get_header(name: str) -> str:
     # WSGI/Flask: HTTP headers are in environ as HTTP_<HEADER_NAME>
-    return os.environ.get('HTTP_' + name.upper().replace('-', '_'), '')
+    return os.getenv('HTTP_' + name.upper().replace('-', '_'), '')
 
 
 def main() -> None:
     # Check for POST request
-    request_method = os.environ.get('REQUEST_METHOD', '')
+    request_method = os.getenv('REQUEST_METHOD', '')
     if request_method != 'POST':
         error_log(f'FAILED - not POST - {request_method}')
         sys.exit(1)
 
     # Get content type
-    content_type = os.environ.get('CONTENT_TYPE', '').strip().lower()
+    content_type = os.getenv('CONTENT_TYPE', '').strip().lower()
     if content_type != 'application/json':
         error_log(f'FAILED - not application/json - {content_type}')
         sys.exit(1)
@@ -66,9 +65,13 @@ def main() -> None:
         sys.exit(1)
 
     # success, do something
-    with pathlib.Path("/tmp/min.waf.deploy").open("w") as lock_file:
-        lock_file.write(str(time.time()))
-        sys.stderr.write('deploy scheduled\n')
+    try:
+        result = subprocess.run(['git', 'pull', '-r'], capture_output=True, text=True, check=True)
+        print('SUCCESS')
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        error_log(f'FAILED - git pull -r: {e.stderr}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':
