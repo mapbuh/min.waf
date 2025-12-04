@@ -94,6 +94,16 @@ class Config:
             'ip_ranges_url': 'https://www.bing.com/toolbox/bingbot.json',
             'action': 'allow',
         },
+        'DuckDuckGo': {
+            'user_agent': 'DuckDuckBot',
+            'ip_ranges_url': 'https://duckduckgo.com/duckduckbot.json',
+            'action': 'allow',
+        },
+        'OpenAI': {
+            'user_agent': 'OpenAI',
+            'ip_ranges_url': 'https://api.openai.com/bot/ip-ranges',
+            'action': 'allow',
+        },
     }
 
     def __init__(self) -> None:

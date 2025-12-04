@@ -55,7 +55,7 @@ class IpWhitelist:
                         if ip_prefix:
                             try:
                                 user_agent = bot_data['user_agent']
-                                if not user_agent in self.whitelist_bots:
+                                if user_agent not in self.whitelist_bots:
                                     self.whitelist_bots[user_agent] = []
                                 self.whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
