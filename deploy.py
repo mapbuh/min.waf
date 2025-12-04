@@ -20,12 +20,6 @@ def get_header(name: str) -> str:
 
 
 def main() -> None:
-    # Get content type
-    content_type = os.getenv('CONTENT_TYPE', '').strip().lower()
-    if content_type != 'application/json':
-        error_log(f'FAILED - not application/json - {content_type}')
-        sys.exit(1)
-
     # Get payload
     payload = sys.stdin.read().strip()
     if not payload:
