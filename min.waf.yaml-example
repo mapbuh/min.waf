@@ -15,7 +15,7 @@ whitelist_triggers:
   - http_status: '200'
     path: /wp-admin/
 bots:
-  - Google:
+  Google:
     user_agent: Google
     ip_ranges_url: https://developers.google.com/static/search/apis/ipranges/googlebot.json
     action: allow

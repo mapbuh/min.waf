@@ -31,6 +31,8 @@ class MinWaf:
         atexit.register(self.at_exit)
         self.rts.start_time = time.time()
         logging.info("min.waf started")
+        logging.warning("min.waf started in WARNING mode")
+        logging.error("min.waf started in ERROR mode")
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)

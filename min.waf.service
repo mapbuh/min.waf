@@ -10,6 +10,7 @@ KillSignal=SIGINT
 Restart=on-failure
 RestartPreventExitStatus=0 255
 LimitNOFile=65536
+SyslogLevel=debug
 
 [Install]
 WantedBy=multi-user.target
