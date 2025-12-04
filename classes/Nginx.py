@@ -147,7 +147,7 @@ class Nginx:
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
-            logging.debug(f"{log_line.ip} good bot: {log_line.ua}")
+            # logging.debug(f"{log_line.ip} good bot: {log_line.ua}")
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
             IpTables.ban(log_line.ip, rts, config, None)
@@ -203,7 +203,6 @@ class Nginx:
 
         if KnownAttacks.is_known(config, log_line):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
-            logging.info(f"{log_line.ip} banned; Known attack detected: {log_line.req}")
             return Nginx.STATUS_BANNED
         Checks.log_probes(log_line, line, rts)
 

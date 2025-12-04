@@ -13,6 +13,7 @@ Ideally we'll identify new patterns by:
 """
 
 
+import logging
 from classes.LogLine import LogLine
 from classes.Config import Config
 
@@ -24,5 +25,6 @@ class KnownAttacks:
             return False
         for attack in config.known_attacks:
             if attack.lower() in log_line.req.lower():
+                logging.info(f"{log_line.ip} banned; Known attack detected: {log_line.req}")
                 return True
         return False
