@@ -123,4 +123,7 @@ class Config:
             print(self.bots[bot])
         for bot, bot_data in self.bots.items():
             if 'ip_ranges_url' in bot_data:
-                Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                try:
+                    Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                except Exception as e:
+                    print(f"Error fetching IP ranges for bot {bot}: {e}")
