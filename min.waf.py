@@ -19,7 +19,7 @@ def main(
     interactive: bool | None,
     url_stats: bool | None,
     ua_stats: bool | None,
-):
+) -> None:
     configObj: Config = Config()
     # Load config file
     configObj.load(config)
@@ -37,7 +37,6 @@ def main(
         min_waf = MinWafLog(configObj)
     else:
         min_waf = MinWafProxy(configObj)
-    min_waf.init()
     min_waf.run()
 
 

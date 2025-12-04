@@ -16,6 +16,8 @@ class IpBlacklist:
         self.refresh_list()
 
     def refresh_list(self) -> None:
+        if not self.config.ip_blacklist:
+            return
         if not self.is_file_recent(self.filename, self.config.ip_blacklist_refresh_time):
             self.download_file(self.config.ip_blacklist, self.filename)
         elif pathlib.Path(self.filename + ".downloaded").exists():
