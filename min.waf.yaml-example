@@ -14,20 +14,36 @@ whitelist_triggers:
   wordpress.example.com:
   - http_status: '200'
     path: /wp-admin/
+bots:
+  Bing:
+    user_agent: Bingbot
+    ip_ranges_url: https://www.bing.com/toolbox/bingbot.json
+    action: allow
+  DuckDuckGo:
+    user_agent: DuckDuckBot
+    ip_ranges_url: https://duckduckgo.com/duckduckbot.json
+    action: allow
+  Google:
+    user_agent: Google
+    ip_ranges_url: https://developers.google.com/static/search/apis/ipranges/googlebot.json
+    action: allow
+  OAI-GPTBot:
+    user_agent: GPTBot
+    ip_ranges_url: https://openai.com/gptbot.json
+    action: allow
+  OAI-SearchBot:
+    user_agent: OAI-SearchBot
+    ip_ranges_url: https://openai.com/searchbot.json
+    action: allow
 good_bots:
   Ad.Min:
     - 'https://ad.min.solutions'
   Babbar:
     - 'https://www.babbar.tech/crawler'
-  Bing:
-    - 'http://www.bing.com/bingbot.htm'
   Facebook:
     - 'https://developers.facebook.com/docs/sharing/webmasters/crawler'
     - 'http://www.facebook.com/bot.html'
     - 'http://www.facebook.com/externalhit_uatext.php'
-  Google:
-    - 'http://www.google.com/adsbot.html'
-    - 'http://www.google.com/bot.html'
   Majestic:
     - 'http://mj12bot.com/'
   Monit:

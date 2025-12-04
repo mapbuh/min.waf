@@ -3,6 +3,7 @@ import ipaddress
 import logging
 import pathlib
 import re
+import requests
 from classes.ExpiringList import ExpiringList
 from classes.Config import Config
 
@@ -12,9 +13,18 @@ class IpWhitelist:
         self.config = config
         self.whitelist: dict[str, ExpiringList[str]] = {}
         self.whitelist_permanent: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        self.whitelist_bots: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        self.load()
+
+    def load(self) -> None:
+        self.whitelist.clear()
+        self.whitelist_load_bots()
         self.whitelist_load_permanent()
+        self.is_whitelisted.cache_clear()
+        self.is_trigger.cache_clear()
 
     def whitelist_load_permanent(self) -> None:
+        self.whitelist_permanent = []
         if self.config.whitelist_permanent:
             if pathlib.Path(self.config.whitelist_permanent).exists():
                 with open(self.config.whitelist_permanent, 'r') as f:
@@ -29,23 +39,54 @@ class IpWhitelist:
             else:
                 logging.warning(f"Permanent whitelist file {self.config.whitelist_permanent} not found.")
 
+    def whitelist_load_bots(self) -> None:
+        self.whitelist_bots = {}
+        if not hasattr(self.config, 'bots'):
+            return
+        for bot, bot_data in self.config.bots.items():
+            if bot_data.get('action') == 'allow' and bot_data.get('ip_ranges_url'):
+                try:
+                    response = requests.get(bot_data['ip_ranges_url'], timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    prefixes = data.get('prefixes', [])
+                    for prefix in prefixes:
+                        ip_prefix = prefix.get('ipv4Prefix') or prefix.get('ipv6Prefix')
+                        if ip_prefix:
+                            try:
+                                user_agent = bot_data['user_agent']
+                                if user_agent not in self.whitelist_bots:
+                                    self.whitelist_bots[user_agent] = []
+                                self.whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
+                            except ValueError:
+                                logging.warning(f"Invalid network in bot whitelist: {ip_prefix}")
+                    logging.info(f"Loaded {len(prefixes)} IP ranges for bot {bot}")
+                except Exception as e:
+                    logging.warning(f"Failed to load IP ranges for bot {bot}: {e}")
+
     @lru_cache(maxsize=1024)
-    def is_whitelisted(self, host: str, ip: str) -> bool:
+    def is_whitelisted(self, host: str, ip: str, user_agent: str) -> bool:
         if ip.strip() == '':
             logging.info(f"strange ip {host=} {ip=}")
             return False
         for net in self.whitelist_permanent:
             if ipaddress.ip_address(ip) in net:
+                logging.debug(f"{ip} permanent whitelist match in {net}")
                 return True
-        if host not in self.whitelist:
-            return False
         try:
-            if ip in self.whitelist[host].values():
-                self.whitelist[host].touch(ip)
-                return True
-        except ValueError:
-            logging.warning(f"Whitelist checking {ip}")
-            return False
+            if host in self.whitelist:
+                if ip in self.whitelist[host].values():
+                    self.whitelist[host].touch(ip)
+                    logging.debug(f"{ip} found in temporary whitelist for host {host}")
+                    return True
+        except ValueError as err:
+            logging.warning(f"Whitelist checking {ip} {err=}")
+        for bot, networks in self.whitelist_bots.items():
+            if bot in user_agent:
+                for net in networks:
+                    if ipaddress.ip_address(ip) in net:
+                        logging.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
+                        return True
         return False
 
     @lru_cache(maxsize=1024)

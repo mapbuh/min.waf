@@ -1,3 +1,4 @@
+import requests
 import yaml
 
 
@@ -82,6 +83,33 @@ class Config:
         ".rb",
         ".sh",
     ]
+    bots: dict[str, dict[str, str]] = {
+        'Bing': {
+            'user_agent': 'Bingbot',
+            'ip_ranges_url': 'https://www.bing.com/toolbox/bingbot.json',
+            'action': 'allow',
+        },
+        'DuckDuckGo': {
+            'user_agent': 'DuckDuckBot',
+            'ip_ranges_url': 'https://duckduckgo.com/duckduckbot.json',
+            'action': 'allow',
+        },
+        'Google': {
+            'user_agent': 'Google',
+            'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
+            'action': 'allow',
+        },
+        'OAI-GPTBot': {
+            'user_agent': 'GPTBot',
+            'ip_ranges_url': 'https://openai.com/gptbot.json',
+            'action': 'allow',
+        },
+        'OAI-SearchBot': {
+            'user_agent': 'OAI-SearchBot',
+            'ip_ranges_url': 'https://openai.com/searchbot.json',
+            'action': 'allow',
+        },
+    }
 
     def __init__(self) -> None:
         pass
@@ -95,3 +123,12 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
+        print(self.bots)
+        for bot in self.bots:
+            print(self.bots[bot])
+        for bot, bot_data in self.bots.items():
+            if 'ip_ranges_url' in bot_data:
+                try:
+                    Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                except Exception as e:
+                    print(f"Error fetching IP ranges for bot {bot}: {e}")

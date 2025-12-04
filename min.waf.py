@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import logging
 import click
 
 from classes.Config import Config
@@ -19,7 +20,7 @@ def main(
     interactive: bool | None,
     url_stats: bool | None,
     ua_stats: bool | None,
-):
+) -> None:
     configObj: Config = Config()
     # Load config file
     configObj.load(config)
@@ -31,13 +32,18 @@ def main(
         configObj.mode = "log2ban"
     if interactive is not None:
         configObj.mode = 'interactive'
+    logging.basicConfig(
+        format="%(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        level=logging.DEBUG if configObj.debug else logging.INFO,
+    )
+    logging.getLogger("inotify").setLevel(logging.WARNING)
 
     min_waf: MinWafLog | MinWafProxy
     if configObj.mode == "log2ban" or configObj.mode == "interactive":
         min_waf = MinWafLog(configObj)
     else:
         min_waf = MinWafProxy(configObj)
-    min_waf.init()
     min_waf.run()
 
 

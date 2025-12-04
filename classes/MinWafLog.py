@@ -7,20 +7,19 @@ import logging
 from classes.Config import Config
 from classes.Nginx import Nginx
 from classes.MinWaf import MinWaf
+from classes.PrintStats import PrintStats
+from classes.IpTables import IpTables
 
 
 class MinWafLog(MinWaf):
     def __init__(self, config: Config) -> None:
-        super().__init__(config)
         if self.config.mode == "log2ban":
             print("Running in background mode")
             pid = os.fork()
             if pid > 0:
                 # Exit parent process
                 sys.exit(0)
-
-    def init(self) -> None:
-        super().init()
+        super().__init__(config)
         nginx_config = Nginx.config_get()
         self.config.log_file_path = nginx_config["log_file_path"]
         log_format = nginx_config["log_format"]
@@ -66,6 +65,13 @@ class MinWafLog(MinWaf):
                 logging.info("Log file rotated, reopening")
                 time.sleep(3)
                 return
+
+    def refresh_cb(self) -> None:
+        if self.config.mode == "interactive":
+            PrintStats.print_stats(self.config, self.rts)
+        IpTables.unban_expired(self.config, self.rts)
+        if self.config.ip_blacklist and self.rts.ip_blacklist:
+            self.rts.ip_blacklist.refresh_list()
 
     def parse_line(self, line: str) -> str:
         """

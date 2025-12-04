@@ -46,5 +46,5 @@ def test_runtimestats_init_and_blacklist(monkeypatch):
     assert isinstance(rts.ip_stats, object)
     assert isinstance(rts.inter_domain, IDS)
     config.ip_blacklist = ""
-    rts.init_ip_blacklist(config)
+    rts.init_ip_blacklist()
     assert rts.ip_blacklist is None

@@ -4,7 +4,7 @@ import os
 import signal
 import sys
 import time
-import yappi
+# import yappi
 
 from classes.Config import Config
 from classes.IpTables import IpTables
@@ -17,24 +17,20 @@ class MinWaf:
         self.config: Config = config
         self.rts: RunTimeStats = RunTimeStats(config)
         if self.config.profiling:
-            yappi.start()
-
-    def init(self) -> None:
-        logging.basicConfig(
-            format="%(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.DEBUG if self.config.debug else logging.INFO,
-        )
-        logging.getLogger("inotify").setLevel(logging.WARNING)
+            # yappi.start()
+            pass
         self.lockfile_init()
         IpTables.init(self.config)
-        self.rts.init_ip_blacklist(self.config)
+        self.rts.load()
         atexit.register(self.at_exit)
-        self.rts.start_time = time.time()
-        logging.info("min.waf started")
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
+        self.rts.start_time = time.time()
+        if self.config.mode == "proxy":
+            logging.info(f"min.waf started on {self.config.proxy_listen_host}:{self.config.proxy_listen_port}")
+        else:
+            logging.info("min.waf started in log2ban/interactive mode")
 
     def signal_handler(self, signum: int, frame: object) -> None:
         if signum == signal.SIGTERM:
@@ -47,8 +43,7 @@ class MinWaf:
         elif signum == signal.SIGHUP:
             logging.info(f"Received signal {signum}, reloading config...")
             self.config.load(self.config.config_file_path)
-            self.rts.ip_whitelist.whitelist_load_permanent()
-            self.rts.init_ip_blacklist(self.config)
+            self.rts.load()
         else:
             logging.warning(f"Received unknown signal {signum}, ignoring...")
 
@@ -56,9 +51,9 @@ class MinWaf:
         self.lockfile_remove()
         IpTables.clear(self.config)
         if self.config.profiling:
-            yappi.stop()
-            yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
-            # yappi.get_thread_stats().print_all()
+            # yappi.stop()
+            # yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
+            pass
         logging.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:
@@ -86,13 +81,6 @@ class MinWaf:
             self.lockfile_remove()
         with open(self.config.lockfile, "w") as f:
             f.write(str(os.getpid()))
-
-    def refresh_cb(self) -> None:
-        if self.config.mode == "interactive":
-            PrintStats.print_stats(self.config, self.rts)
-        IpTables.unban_expired(self.config, self.rts)
-        if self.config.ip_blacklist and self.rts.ip_blacklist:
-            self.rts.ip_blacklist.refresh_list()
 
     def logstats_cb(self) -> None:
         # Periodically log runtime statistics for monitoring and analysis
