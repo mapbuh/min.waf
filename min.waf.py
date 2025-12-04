@@ -37,6 +37,7 @@ def main(
         datefmt="%Y-%m-%d %H:%M:%S",
         level=logging.DEBUG if configObj.debug else logging.INFO,
     )
+    logging.getLogger("inotify").setLevel(logging.WARNING)
 
     min_waf: MinWafLog | MinWafProxy
     if configObj.mode == "log2ban" or configObj.mode == "interactive":

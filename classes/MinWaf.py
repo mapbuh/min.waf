@@ -19,23 +19,15 @@ class MinWaf:
         if self.config.profiling:
             # yappi.start()
             pass
-        logging.basicConfig(
-            format="%(message)s",
-            datefmt="%Y-%m-%d %H:%M:%S",
-            level=logging.DEBUG if self.config.debug else logging.INFO,
-        )
-        logging.getLogger("inotify").setLevel(logging.WARNING)
         self.lockfile_init()
         IpTables.init(self.config)
         self.rts.load()
         atexit.register(self.at_exit)
-        self.rts.start_time = time.time()
-        logging.info("min.waf started")
-        logging.warning("min.waf started in WARNING mode")
-        logging.error("min.waf started in ERROR mode")
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
+        self.rts.start_time = time.time()
+        logging.info("min.waf started")
 
     def signal_handler(self, signum: int, frame: object) -> None:
         if signum == signal.SIGTERM:
