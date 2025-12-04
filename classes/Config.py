@@ -84,11 +84,6 @@ class Config:
         ".sh",
     ]
     bots: dict[str, dict[str, str]] = {
-        'Google': {
-            'user_agent': 'Google',
-            'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
-            'action': 'allow',
-        },
         'Bing': {
             'user_agent': 'Bingbot',
             'ip_ranges_url': 'https://www.bing.com/toolbox/bingbot.json',
@@ -99,9 +94,19 @@ class Config:
             'ip_ranges_url': 'https://duckduckgo.com/duckduckbot.json',
             'action': 'allow',
         },
-        'OpenAI': {
-            'user_agent': 'OpenAI',
-            'ip_ranges_url': 'https://api.openai.com/bot/ip-ranges',
+        'Google': {
+            'user_agent': 'Google',
+            'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
+            'action': 'allow',
+        },
+        'OAI-GPTBot': {
+            'user_agent': 'GPTBot',
+            'ip_ranges_url': 'https://openai.com/gptbot.json',
+            'action': 'allow',
+        },
+        'OAI-SearchBot': {
+            'user_agent': 'OAI-SearchBot',
+            'ip_ranges_url': 'https://openai.com/oai-searchbot.json',
             'action': 'allow',
         },
     }
