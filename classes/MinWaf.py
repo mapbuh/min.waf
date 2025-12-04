@@ -27,7 +27,10 @@ class MinWaf:
         signal.signal(signal.SIGUSR1, self.signal_handler)
         signal.signal(signal.SIGHUP, self.signal_handler)
         self.rts.start_time = time.time()
-        logging.info("min.waf started")
+        if self.config.mode == "proxy":
+            logging.info(f"min.waf started on {self.config.proxy_listen_host}:{self.config.proxy_listen_port}")
+        else:
+            logging.info("min.waf started in log2ban/interactive mode")
 
     def signal_handler(self, signum: int, frame: object) -> None:
         if signum == signal.SIGTERM:
