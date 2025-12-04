@@ -20,12 +20,6 @@ def get_header(name: str) -> str:
 
 
 def main() -> None:
-    # Check for POST request
-    request_method = os.getenv('REQUEST_METHOD', '')
-    if request_method != 'POST':
-        error_log(f'FAILED - not POST - {request_method}')
-        sys.exit(1)
-
     # Get content type
     content_type = os.getenv('CONTENT_TYPE', '').strip().lower()
     if content_type != 'application/json':
