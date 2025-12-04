@@ -89,6 +89,11 @@ class Config:
             'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
             'action': 'allow',
         },
+        'Bing': {
+            'user_agent': 'Bingbot',
+            'ip_ranges_url': 'https://www.bing.com/toolbox/bingbot.json',
+            'action': 'allow',
+        },
     }
 
     def __init__(self) -> None:
