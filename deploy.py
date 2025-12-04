@@ -66,8 +66,7 @@ def main() -> None:
         sys.exit(1)
 
     # success, do something
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    with pathlib.Path(current_dir + "deploy.lock").open("w") as lock_file:
+    with pathlib.Path("/tmp/min.waf.deploy").open("w") as lock_file:
         lock_file.write(str(time.time()))
         sys.stderr.write('deploy scheduled\n')
 
