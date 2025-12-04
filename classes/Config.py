@@ -106,7 +106,7 @@ class Config:
         },
         'OAI-SearchBot': {
             'user_agent': 'OAI-SearchBot',
-            'ip_ranges_url': 'https://openai.com/oai-searchbot.json',
+            'ip_ranges_url': 'https://openai.com/searchbot.json',
             'action': 'allow',
         },
     }
