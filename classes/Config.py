@@ -110,6 +110,7 @@ class Config:
             'action': 'allow',
         },
     }
+    whitelist_log: bool = False
 
     def __init__(self) -> None:
         pass

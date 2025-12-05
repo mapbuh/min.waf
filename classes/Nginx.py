@@ -141,7 +141,7 @@ class Nginx:
         url_data: IpData | None = None
 
         if log_line.ip.strip() == '' and log_line.host.strip() == '':
-            logging.debug(f"empty request: {line}")
+            # logging.debug(f"empty request: {line}")
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
