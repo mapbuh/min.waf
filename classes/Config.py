@@ -28,7 +28,6 @@ class Config:
     log_file_path: str = ""
     good_bots: dict[str, list[str]] = {}
     bad_bots: dict[str, list[str]] = {}
-    ignore_extensions: list[str] = []
     known_attacks: list[str] = []
     http_status_bad_threshold: float = 0.51
     proxy_listen_host: str = "127.0.0.1"

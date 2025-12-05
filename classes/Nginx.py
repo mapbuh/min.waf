@@ -158,7 +158,7 @@ class Nginx:
             return Nginx.STATUS_BANNED
         if rts.ip_whitelist.is_trigger(log_line.host, log_line.ip, log_line.path, log_line.http_status):
             return Nginx.STATUS_OK
-        if log_line.path.endswith(tuple(config.ignore_extensions)):
+        if log_line.path.endswith(tuple(config.static_files)):
             return Nginx.STATUS_OK
         ip_data = rts.ip_stats.get(log_line.ip)
         if ip_data is None:

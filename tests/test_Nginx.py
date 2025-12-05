@@ -81,7 +81,6 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
     class DummyConfig(Config):
         def __init__(self):
             super().__init__()
-            self.ignore_extensions = []
             self.url_stats = False
             self.ua_stats = False
             self.time_frame = 60
@@ -92,7 +91,6 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
             }
             self.good_bots = {"Google": ["Googlebot"]}
             self.bad_bots = {"EvilBot": ["EvilBot"]}
-            self.ignore_extensions = [".ignored"]
             self.url_stats = True
             self.ua_stats = True
 

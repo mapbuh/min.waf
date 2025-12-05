@@ -2,20 +2,26 @@ import ipaddress
 import pathlib
 import pytest
 from classes.IpWhitelist import IpWhitelist
+from classes.Config import Config
+
 
 class DummyExpiringList(list[str]):
     def values(self):
         return self
+
     def touch(self, ip: str) -> None:
         pass
+
     def append(self, ip: str) -> None:
         self.append(ip)
 
-class DummyConfig:
-    whitelist_permanent: str | None = None
+
+class DummyConfig(Config):
+    whitelist_permanent = ""
     whitelist_triggers = {}
     whitelist_expiration = 60
     bots = {}
+
 
 def test_whitelist_bot_load(monkeypatch: pytest.MonkeyPatch):
     config = DummyConfig()
@@ -33,6 +39,7 @@ def test_whitelist_bot_load(monkeypatch: pytest.MonkeyPatch):
     assert isinstance(ipw.whitelist_bots['GoogleUA'], list)
     assert len(ipw.whitelist_bots['GoogleUA']) > 10
 
+
 def test_whitelist_load_permanent(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
     # Create a dummy whitelist file
     whitelist_file = tmp_path / "whitelist.txt"
@@ -46,6 +53,7 @@ def test_whitelist_load_permanent(tmp_path: pathlib.Path, monkeypatch: pytest.Mo
     config.whitelist_permanent = str(tmp_path / "nonexistent.txt")
     ipw = IpWhitelist(config)  # Should log a warning but not raise
     assert ipw.whitelist_permanent == []
+
 
 def test_is_whitelisted(monkeypatch: pytest.MonkeyPatch):
     config = DummyConfig()
@@ -64,7 +72,8 @@ def test_is_whitelisted(monkeypatch: pytest.MonkeyPatch):
     assert not ipw.is_whitelisted("host", "2.3.4.5", "Mozilla 5.0")
     assert not ipw.is_whitelisted("host", "8.8.8.8", "Mozilla 5.0")
 
-def test_is_trigger(monkeypatch):
+
+def test_is_trigger(monkeypatch: pytest.MonkeyPatch):
     config = DummyConfig()
     config.whitelist_triggers = {
         "host": [{"path": "/foo", "http_status": 200}]

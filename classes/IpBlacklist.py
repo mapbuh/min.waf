@@ -55,6 +55,6 @@ class IpBlacklist:
     @lru_cache(maxsize=1024)
     def is_ip_blacklisted(self, ip: str) -> bool:
         if ip in self.list:
-            logging.debug(f"{ip} found in blacklist")
+            logging.debug(f"{ip} banned; found in blacklist")
             return True
         return False
