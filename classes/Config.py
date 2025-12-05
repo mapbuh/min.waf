@@ -148,7 +148,10 @@ class Config:
 
 
     def __init__(self) -> None:
-        pass
+        self.longest_signature = 0
+        for signature in self.sql_injection_signatures + self.php_injection_signatures:
+            if len(signature) > self.longest_signature:
+                self.longest_signature = len(signature)
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
