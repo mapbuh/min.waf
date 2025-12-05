@@ -1,6 +1,5 @@
 import subprocess
 import time
-import logging
 from classes.Config import Config
 from classes.RunTimeStats import RunTimeStats
 from classes.ExpiringList import ExpiringList
@@ -121,4 +120,4 @@ class IpTables:
                     subprocess.run([
                         "iptables", "-D", config.iptables_chain, "-s", ip, "-p", "tcp", "--dport", "443", "-j", "DROP",
                     ])
-                logging.debug(f"{ip} unbanned after {config.ban_time}s")
+                # logging.debug(f"{ip} unbanned after {config.ban_time}s")
