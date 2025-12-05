@@ -73,9 +73,13 @@ class MinProxy:
         buffer: bytes = b''
         buff_size = 8192
         data: bytes = b''
+        whole_request: bytes = b''
+        whole_response: bytes = b''
         while True:
             try:
                 data = request_socket.recv(buff_size)
+                if Config.inspect_packets:
+                    whole_request += data
             except ConnectionResetError:
                 request_socket.close()
             if not data:
@@ -148,6 +152,11 @@ class MinProxy:
             for sock in read_sockets:
                 try:
                     data = sock.recv(buff_size)
+                    if Config.inspect_packets:
+                        if sock == request_socket:
+                            whole_request += data
+                        else:
+                            whole_response += data
                     if not data:
                         # connection closed
                         request_socket.close()

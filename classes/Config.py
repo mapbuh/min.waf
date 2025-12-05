@@ -110,6 +110,42 @@ class Config:
         },
     }
     whitelist_log: bool = False
+    inspect_packets: bool = True
+    sql_injection_signatures: list[str] = [
+        "UNION SELECT",
+        "SELECT * FROM",
+        "DROP TABLE",
+        "INSERT INTO",
+        "UPDATE SET",
+        "DELETE FROM",
+        "xp_",
+        "OR '1'='1",
+        'OR "1"="1"',
+        "OR 1=1",
+        "--",
+        ";--",
+        ";",
+        "/*",
+        "*/",
+        "@@",
+        "CHAR(",
+        "NCHAR(",
+        "CAST(",
+        "CONVERT(",
+    ]
+    php_injection_signatures: list[str] = [
+        "system(",
+        "exec(",
+        "shell_exec(",
+        "passthru(",
+        "popen(",
+        "proc_open(",
+        "eval(",
+        "assert(",
+        "preg_replace(",
+        "create_function(",
+    ]
+
 
     def __init__(self) -> None:
         pass
