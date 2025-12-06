@@ -1,3 +1,4 @@
+import logging
 import requests
 import urllib.parse
 import yaml
@@ -112,43 +113,61 @@ class Config:
     }
     whitelist_log: bool = False
     inspect_packets: bool = True
-    sql_injection_signatures: list[str] = [
-        "UNION SELECT",
-        "SELECT * FROM",
-        "DROP TABLE",
-        "INSERT INTO",
-        "UPDATE SET",
-        "DELETE FROM",
-        "xp_",
-        "OR '1'='1",
-        'OR "1"="1"',
-        "OR 1=1",
-        "--",
-        ";--",
-        ";",
-        "/*",
-        "*/",
-        "@@",
-        "CHAR(",
-        "NCHAR(",
-        "CAST(",
-        "CONVERT(",
-    ]
-    php_injection_signatures: list[str] = [
-        "system(",
-        "exec(",
-        "shell_exec(",
-        "passthru(",
-        "popen(",
-        "proc_open(",
-        "eval(",
-        "assert(",
-        "preg_replace(",
-        "create_function(",
-    ]
 
     def __init__(self) -> None:
-        pass
+        self.longest_signature: int = 0
+        self.sql_injection_signatures: list[str] = [
+            "UNION SELECT",
+            "SELECT * FROM",
+            "DROP TABLE",
+            "INSERT INTO",
+            "UPDATE SET",
+            "DELETE FROM",
+            "xp_",
+            "OR '1'='1",
+            'OR "1"="1"',
+            "OR 1=1",
+            "--",
+            ";--",
+            ";",
+            "/*",
+            "*/",
+            "@@",
+            "CHAR(",
+            "NCHAR(",
+            "CAST(",
+            "CONVERT(",
+        ]
+        self.php_injection_signatures: list[str] = [
+            "system(",
+            "exec(",
+            "shell_exec(",
+            "passthru(",
+            "popen(",
+            "proc_open(",
+            "eval(",
+            "assert(",
+            "preg_replace(",
+            "create_function(",
+        ]
+        for i in range(len(self.sql_injection_signatures)):
+            signature = self.sql_injection_signatures[i]
+            if len(signature) > self.longest_signature:
+                self.longest_signature = len(signature)
+            signature_quoted = urllib.parse.quote(signature)
+            if signature_quoted != signature:
+                self.sql_injection_signatures.append(signature_quoted)
+                if len(signature_quoted) > self.longest_signature:
+                    self.longest_signature = len(signature_quoted)
+        for i in range(len(self.php_injection_signatures)):
+            signature = self.php_injection_signatures[i]
+            if len(signature) > self.longest_signature:
+                self.longest_signature = len(signature)
+            signature_quoted = urllib.parse.quote(signature)
+            if signature_quoted != signature:
+                self.php_injection_signatures.append(signature_quoted)
+                if len(signature_quoted) > self.longest_signature:
+                    self.longest_signature = len(signature_quoted)
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
@@ -159,23 +178,9 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
-        print(self.bots)
-        for bot in self.bots:
-            print(self.bots[bot])
         for bot, bot_data in self.bots.items():
             if 'ip_ranges_url' in bot_data:
                 try:
-                    Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                    self.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
                 except Exception as e:
-                    print(f"Error fetching IP ranges for bot {bot}: {e}")
-        self.longest_signature = 0
-        for signature in list(self.sql_injection_signatures):
-            if urllib.parse.quote_plus(signature) != signature:
-                self.sql_injection_signatures.append(urllib.parse.quote_plus(signature))
-        for signature in list(self.php_injection_signatures):
-            if urllib.parse.quote_plus(signature) != signature:
-                self.php_injection_signatures.append(urllib.parse.quote_plus(signature))
-        for signature in self.sql_injection_signatures + self.php_injection_signatures:
-            if len(signature) > self.longest_signature:
-                self.longest_signature = len(signature)
-
+                    logging.error(f"Error fetching IP ranges for bot {bot}: {e}")

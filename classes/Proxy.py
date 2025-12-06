@@ -76,11 +76,11 @@ class MinProxy:
         request_whole: bytes = b''
         response_whole: bytes = b''
         request_clean_upto: int = 0
-        response_clean_upto: int = 0
+        # response_clean_upto: int = 0
         while True:
             try:
                 data = nginx_socket.recv(buff_size)
-                if Config.inspect_packets:
+                if self.config.inspect_packets:
                     request_whole += data
             except ConnectionResetError:
                 nginx_socket.close()
@@ -119,7 +119,12 @@ class MinProxy:
                 logging.info(f"Connection to WAF destination {waf_dest} refused")
                 nginx_socket.close()
                 return
-            if not self.upstream_send(upstream_socket, buffer, request_whole, request_clean_upto, self.config.longest_signature):
+            if self.is_safe(
+                request_whole,
+                request_clean_upto,
+            ):
+                upstream_socket.send(data)
+            else:
                 logging.info(f"Dropping connection from {addr} due to detected injection attempt")
                 nginx_socket.close()
                 upstream_socket.close()
@@ -158,7 +163,7 @@ class MinProxy:
             for sock in read_sockets:
                 try:
                     data = sock.recv(buff_size)
-                    if Config.inspect_packets:
+                    if self.config.inspect_packets:
                         if sock == nginx_socket:
                             request_whole += data
                         else:
@@ -170,7 +175,12 @@ class MinProxy:
                         break
                     else:
                         if sock == nginx_socket:
-                            if not self.upstream_send(upstream_socket, data, request_whole, request_clean_upto, self.config.longest_signature):
+                            if self.is_safe(
+                                request_whole,
+                                request_clean_upto,
+                            ):
+                                upstream_socket.send(data)
+                            else:
                                 logging.info(f"Dropping connection from {addr} due to detected injection attempt")
                                 nginx_socket.close()
                                 upstream_socket.close()
@@ -215,30 +225,26 @@ class MinProxy:
             Nginx.process_line(self.config, self.rts, log_line, "")
         return
 
-    def upstream_send(
+    def is_safe(
             self,
-            upstream_socket: socket.socket,
-            data: bytes,
             request_whole: bytes,
             request_clean_upto: int,
-            longest_signature: int
-        ) -> bool:
-        if Config.inspect_packets:
+    ) -> bool:
+        if self.config.inspect_packets:
             # Inspect only the new data since last clean point
-            dirty_data_from: int = request_clean_upto - longest_signature + 1
+            dirty_data_from: int = request_clean_upto - self.config.longest_signature + 1
             if dirty_data_from < 0:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
-            for signature in Config.sql_injection_signatures:
+            for signature in self.config.sql_injection_signatures:
                 if signature.encode() in dirty_data:
                     logging.info(f"SQL Injection signature detected: {signature}")
                     # Drop the connection by not sending data upstream
                     return False
-            for signature in Config.php_injection_signatures:
+            for signature in self.config.php_injection_signatures:
                 if signature.encode() in dirty_data:
                     logging.info(f"PHP Injection signature detected: {signature}")
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
-        upstream_socket.send(data)
         return True
