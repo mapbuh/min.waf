@@ -43,6 +43,8 @@ class IpWhitelist:
         self.whitelist_bots = {}
         if not hasattr(self.config, 'bots'):
             return
+        if not self.config.bots:
+            return
         for bot, bot_data in self.config.bots.items():
             if bot_data.get('action') == 'allow' and bot_data.get('ip_ranges_url'):
                 try:
