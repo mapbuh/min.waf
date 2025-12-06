@@ -119,7 +119,7 @@ class Config:
         self.sql_injection_signatures: list[str] = [
             "UNION SELECT",
             "SELECT * FROM",
-            "DROP TABLE",
+            "drop TABLE",
             "INSERT INTO",
             "UPDATE SET",
             "DELETE FROM",
