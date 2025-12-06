@@ -90,7 +90,6 @@ class MinProxy:
             buffer += data
             if (buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1) and len(buffer) > 1:
                 break
-        print("hmf1")
         buffer_decoded = buffer.decode(errors='ignore')
         host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
         if host_match:
@@ -231,9 +230,7 @@ class MinProxy:
             request_whole: bytes,
             request_clean_upto: int,
     ) -> bool:
-        logging.info("Inspecting packet for injection signatures")
-        logging.info("Request data to inspect: " + request_whole.decode(errors='ignore'))
-        print(request_whole.decode(errors='ignore'))
+        print(">>>" + request_whole.decode(errors='ignore') + "<<<")
         if self.config.inspect_packets:
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_signature + 1
@@ -241,6 +238,7 @@ class MinProxy:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.sql_injection_signatures:
+                print(signature, dirty_data.decode(errors='ignore'))
                 if signature.encode().lower() in dirty_data.lower():
                     logging.info(f"SQL Injection signature detected: {signature}")
                     # Drop the connection by not sending data upstream
