@@ -90,6 +90,7 @@ class MinProxy:
             buffer += data
             if (buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1) and len(buffer) > 1:
                 break
+        print("hmf1")
         buffer_decoded = buffer.decode(errors='ignore')
         host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
         if host_match:
