@@ -232,6 +232,7 @@ class MinProxy:
     ) -> bool:
         logging.info("Inspecting packet for injection signatures")
         logging.info("Request data to inspect: " + request_whole.decode(errors='ignore'))
+        print(request_whole.decode(errors='ignore'))
         if self.config.inspect_packets:
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_signature + 1
