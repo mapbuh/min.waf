@@ -1,6 +1,5 @@
 import logging
 import requests
-import urllib.parse
 import yaml
 
 
@@ -113,49 +112,34 @@ class Config:
     }
     whitelist_log: bool = False
     inspect_packets: bool = True
+    sql_injection_signatures: list[str] = [
+        "UNION SELECT",
+        "SELECT * FROM",
+        "drop TABLE",
+        "INSERT INTO",
+        "UPDATE SET",
+        "DELETE FROM",
+        "OR '1'='1",
+        'OR "1"="1"',
+    ]
+    php_injection_signatures: list[str] = [
+        "system(",
+        "exec(",
+        "shell_exec(",
+        "passthru(",
+        "popen(",
+        "proc_open(",
+        "eval(",
+        "assert(",
+        "preg_replace(",
+        "create_function(",
+    ]
+    longest_signature: int = 0
 
     def __init__(self) -> None:
-        self.longest_signature: int = 0
-        self.sql_injection_signatures: list[str] = [
-            "UNION SELECT",
-            "SELECT * FROM",
-            "drop TABLE",
-            "INSERT INTO",
-            "UPDATE SET",
-            "DELETE FROM",
-            "OR '1'='1",
-            'OR "1"="1"',
-        ]
-        self.php_injection_signatures: list[str] = [
-            "system(",
-            "exec(",
-            "shell_exec(",
-            "passthru(",
-            "popen(",
-            "proc_open(",
-            "eval(",
-            "assert(",
-            "preg_replace(",
-            "create_function(",
-        ]
-        for i in range(len(self.sql_injection_signatures)):
-            signature = self.sql_injection_signatures[i]
+        for signature in self.sql_injection_signatures + self.php_injection_signatures:
             if len(signature) > self.longest_signature:
                 self.longest_signature = len(signature)
-            signature_quoted = urllib.parse.quote(signature)
-            if signature_quoted != signature:
-                self.sql_injection_signatures.append(signature_quoted)
-                if len(signature_quoted) > self.longest_signature:
-                    self.longest_signature = len(signature_quoted)
-        for i in range(len(self.php_injection_signatures)):
-            signature = self.php_injection_signatures[i]
-            if len(signature) > self.longest_signature:
-                self.longest_signature = len(signature)
-            signature_quoted = urllib.parse.quote(signature)
-            if signature_quoted != signature:
-                self.php_injection_signatures.append(signature_quoted)
-                if len(signature_quoted) > self.longest_signature:
-                    self.longest_signature = len(signature_quoted)
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath

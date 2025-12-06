@@ -4,6 +4,7 @@ import select
 import socket
 import threading
 import time
+import urllib.parse
 
 from classes.Config import Config
 from classes.IpTables import IpTables
@@ -147,6 +148,11 @@ class MinProxy:
                 nginx_socket.close()
                 upstream_socket.close()
                 return
+            if not self.is_safe_header(log_line_data['path']):
+                logging.info(f"Dropping connection from {addr} due to detected injection attempt in path")
+                nginx_socket.close()
+                upstream_socket.close()
+                return
         else:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
@@ -249,4 +255,16 @@ class MinProxy:
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
+        return True
+    
+    def is_safe_header(self, path: str) -> bool:
+        if self.config.inspect_packets:
+            for signature in self.config.sql_injection_signatures:
+                if signature.lower() in urllib.parse.unquote(path).lower():
+                    logging.info(f"SQL Injection signature detected in header: {signature}")
+                    return False
+            for signature in self.config.php_injection_signatures:
+                if signature.lower() in urllib.parse.unquote(path).lower():
+                    logging.info(f"PHP Injection signature detected in header: {signature}")
+                    return False
         return True
