@@ -63,6 +63,22 @@ def test_proxy_inspect(monkeypatch: pytest.MonkeyPatch):
     assert isinstance(result, bool)
     assert result is False
 
+    # sql inject in get data, case insensitive
+    buffer: bytes = (
+        "GET /api/add-user?payload=DrOp%20TaBlE HTTP/1.1\r\n"
+        "Host: www.example.com\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {content_length}\r\n"
+        "\r\n\r\n"
+        f"{payload}"
+    ).encode()
+    request_whole: bytes = buffer
+    request_clean_upto = 0
+    # Call the method
+    result: bool = proxy.is_safe(request_whole, request_clean_upto)
+    assert isinstance(result, bool)
+    assert result is False
+
 
 """
 def test_proxy_handle_client_basic(monkeypatch):
