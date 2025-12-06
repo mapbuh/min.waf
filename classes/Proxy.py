@@ -240,11 +240,11 @@ class MinProxy:
                 if signature.encode() in dirty_data:
                     logging.info(f"SQL Injection signature detected: {signature}")
                     # Drop the connection by not sending data upstream
-                    return False
+                    return True
             for signature in self.config.php_injection_signatures:
                 if signature.encode() in dirty_data:
                     logging.info(f"PHP Injection signature detected: {signature}")
                     # Drop the connection by not sending data upstream
-                    return False
+                    return True
             request_clean_upto = len(request_whole)
         return True
