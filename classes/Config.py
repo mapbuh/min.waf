@@ -1,4 +1,5 @@
 import requests
+import urllib.parse
 import yaml
 
 
@@ -146,12 +147,8 @@ class Config:
         "create_function(",
     ]
 
-
     def __init__(self) -> None:
-        self.longest_signature = 0
-        for signature in self.sql_injection_signatures + self.php_injection_signatures:
-            if len(signature) > self.longest_signature:
-                self.longest_signature = len(signature)
+        pass
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
@@ -171,3 +168,14 @@ class Config:
                     Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
                 except Exception as e:
                     print(f"Error fetching IP ranges for bot {bot}: {e}")
+        self.longest_signature = 0
+        for signature in list(self.sql_injection_signatures):
+            if urllib.parse.quote_plus(signature) != signature:
+                self.sql_injection_signatures.append(urllib.parse.quote_plus(signature))
+        for signature in list(self.php_injection_signatures):
+            if urllib.parse.quote_plus(signature) != signature:
+                self.php_injection_signatures.append(urllib.parse.quote_plus(signature))
+        for signature in self.sql_injection_signatures + self.php_injection_signatures:
+            if len(signature) > self.longest_signature:
+                self.longest_signature = len(signature)
+
