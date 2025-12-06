@@ -166,9 +166,10 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
-        for bot, bot_data in self.bots.items():
-            if 'ip_ranges_url' in bot_data:
-                try:
-                    self.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
-                except Exception as e:
-                    logging.error(f"Error fetching IP ranges for bot {bot}: {e}")
+        if self.bots:
+            for bot, bot_data in self.bots.items():
+                if 'ip_ranges_url' in bot_data:
+                    try:
+                        self.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                    except Exception as e:
+                        logging.error(f"Error fetching IP ranges for bot {bot}: {e}")
