@@ -4,6 +4,7 @@ import select
 import socket
 import threading
 import time
+import urllib.parse
 
 from classes.Config import Config
 from classes.IpTables import IpTables
@@ -56,10 +57,10 @@ class MinProxy:
             for t in all_threads:
                 t.join(1)
 
-    def proxy_handle_client(self, request_socket: socket.socket, addr: tuple[str, int]) -> None:
+    def proxy_handle_client(self, nginx_socket: socket.socket, addr: tuple[str, int]) -> None:
         waf_dest: str = ''
         header_end: bool = False
-        response_socket: socket.socket | None = None
+        upstream_socket: socket.socket | None = None
         log_line_data: dict[str, str | int | float] = {
             'method': '',
             'path': '',
@@ -73,11 +74,17 @@ class MinProxy:
         buffer: bytes = b''
         buff_size = 8192
         data: bytes = b''
+        request_whole: bytes = b''
+        response_whole: bytes = b''
+        request_clean_upto: int = 0
+        # response_clean_upto: int = 0
         while True:
             try:
-                data = request_socket.recv(buff_size)
+                data = nginx_socket.recv(buff_size)
+                if self.config.inspect_packets:
+                    request_whole += data
             except ConnectionResetError:
-                request_socket.close()
+                nginx_socket.close()
             if not data:
                 # eof
                 break
@@ -93,7 +100,7 @@ class MinProxy:
             log_line_data['ip'] = ip_match.group(1).strip()
             if log_line_data['ip'] in self.rts.banned_ips.keys():
                 logging.info(f"Connection from banned IP {log_line_data['ip']} rejected")
-                request_socket.close()
+                nginx_socket.close()
                 return
         ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
         if ua_match:
@@ -104,16 +111,25 @@ class MinProxy:
         match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE)
         if match and waf_dest == '':
             waf_dest = match.group(2).strip()
-            response_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             host, sep, port_str = waf_dest.partition(':')
             port = int(port_str) if sep else 80
             try:
-                response_socket.connect((host, port))
+                upstream_socket.connect((host, port))
             except ConnectionRefusedError:
                 logging.info(f"Connection to WAF destination {waf_dest} refused")
-                request_socket.close()
+                nginx_socket.close()
                 return
-            response_socket.send(buffer)
+            if self.is_safe(
+                request_whole,
+                request_clean_upto,
+            ):
+                upstream_socket.send(data)
+            else:
+                logging.info(f"Dropping connection from {addr} due to detected injection attempt")
+                nginx_socket.close()
+                upstream_socket.close()
+                return
             # Efficiently extract the first line (request line) without splitlines()
             first_line_end = buffer_decoded.find('\n')
             if first_line_end == -1:
@@ -129,8 +145,13 @@ class MinProxy:
                 log_line = LogLine(log_line_data)
                 log_line_data['logged'] = True
                 Nginx.process_line(self.config, self.rts, log_line, "")
-                request_socket.close()
-                response_socket.close()
+                nginx_socket.close()
+                upstream_socket.close()
+                return
+            if not self.is_safe_header(log_line_data['path']):
+                logging.info(f"Dropping connection from {addr} due to detected injection attempt in path")
+                nginx_socket.close()
+                upstream_socket.close()
                 return
         else:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
@@ -141,21 +162,35 @@ class MinProxy:
         header_end = False
         http_status: str = '200'
         while True:
-            if request_socket.fileno() == -1 and response_socket.fileno() == -1:
+            if nginx_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                 break
-            socket_list = [request_socket, response_socket]
+            socket_list = [nginx_socket, upstream_socket]
             read_sockets, _, _ = select.select(socket_list, [], [])
             for sock in read_sockets:
                 try:
                     data = sock.recv(buff_size)
+                    if self.config.inspect_packets:
+                        if sock == nginx_socket:
+                            request_whole += data
+                        else:
+                            response_whole += data
                     if not data:
                         # connection closed
-                        request_socket.close()
-                        response_socket.close()
+                        nginx_socket.close()
+                        upstream_socket.close()
                         break
                     else:
-                        if sock == request_socket:
-                            response_socket.send(data)
+                        if sock == nginx_socket:
+                            if self.is_safe(
+                                request_whole,
+                                request_clean_upto,
+                            ):
+                                upstream_socket.send(data)
+                            else:
+                                logging.info(f"Dropping connection from {addr} due to detected injection attempt")
+                                nginx_socket.close()
+                                upstream_socket.close()
+                                return
                         else:
                             if not header_end:
                                 headers = data.partition(b'\r\n\r\n')[0].decode(errors='ignore')
@@ -174,24 +209,60 @@ class MinProxy:
                                     time.sleep(3)
                                     # and confuse them, in case it hasn't propagated yet
                                     try:
-                                        request_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
+                                        nginx_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
                                     except (BrokenPipeError, OSError):
                                         pass
-                                    request_socket.close()
-                                    response_socket.close()
+                                    nginx_socket.close()
+                                    upstream_socket.close()
                                     return
                             try:
-                                request_socket.send(data)
+                                nginx_socket.send(data)
                             except (BrokenPipeError, OSError):
-                                request_socket.close()
-                                response_socket.close()
+                                nginx_socket.close()
+                                upstream_socket.close()
                                 break
                 except ConnectionResetError:
-                    request_socket.close()
-                    response_socket.close()
+                    nginx_socket.close()
+                    upstream_socket.close()
                     break
         if not log_line_data['logged']:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
             Nginx.process_line(self.config, self.rts, log_line, "")
         return
+
+    def is_safe(
+            self,
+            request_whole: bytes,
+            request_clean_upto: int,
+    ) -> bool:
+        if self.config.inspect_packets:
+            # Inspect only the new data since last clean point
+            dirty_data_from: int = request_clean_upto - self.config.longest_signature + 1
+            if dirty_data_from < 0:
+                dirty_data_from = 0
+            dirty_data = request_whole[dirty_data_from:]
+            for signature in self.config.sql_injection_signatures:
+                if signature.encode().lower() in dirty_data.lower():
+                    logging.info(f"SQL Injection signature detected: {signature}")
+                    # Drop the connection by not sending data upstream
+                    return False
+            for signature in self.config.php_injection_signatures:
+                if signature.encode().lower() in dirty_data.lower():
+                    logging.info(f"PHP Injection signature detected: {signature}")
+                    # Drop the connection by not sending data upstream
+                    return False
+            request_clean_upto = len(request_whole)
+        return True
+    
+    def is_safe_header(self, path: str) -> bool:
+        if self.config.inspect_packets:
+            for signature in self.config.sql_injection_signatures:
+                if signature.lower() in urllib.parse.unquote(path).lower():
+                    logging.info(f"SQL Injection signature detected in header: {signature}")
+                    return False
+            for signature in self.config.php_injection_signatures:
+                if signature.lower() in urllib.parse.unquote(path).lower():
+                    logging.info(f"PHP Injection signature detected in header: {signature}")
+                    return False
+        return True

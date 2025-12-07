@@ -1,3 +1,4 @@
+import logging
 import requests
 import yaml
 
@@ -110,9 +111,35 @@ class Config:
         },
     }
     whitelist_log: bool = False
+    inspect_packets: bool = True
+    sql_injection_signatures: list[str] = [
+        "UNION SELECT",
+        "SELECT * FROM",
+        "drop TABLE",
+        "INSERT INTO",
+        "UPDATE SET",
+        "DELETE FROM",
+        "OR '1'='1",
+        'OR "1"="1"',
+    ]
+    php_injection_signatures: list[str] = [
+        "system(",
+        "exec(",
+        "shell_exec(",
+        "passthru(",
+        "popen(",
+        "proc_open(",
+        "eval(",
+        "assert(",
+        "preg_replace(",
+        "create_function(",
+    ]
+    longest_signature: int = 0
 
     def __init__(self) -> None:
-        pass
+        for signature in self.sql_injection_signatures + self.php_injection_signatures:
+            if len(signature) > self.longest_signature:
+                self.longest_signature = len(signature)
 
     def load(self, filepath: str) -> None:
         self.config_file_path = filepath
@@ -123,12 +150,10 @@ class Config:
                     if key in self.immutables:
                         continue
                     setattr(self, key, value)
-        print(self.bots)
-        for bot in self.bots:
-            print(self.bots[bot])
-        for bot, bot_data in self.bots.items():
-            if 'ip_ranges_url' in bot_data:
-                try:
-                    Config.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
-                except Exception as e:
-                    print(f"Error fetching IP ranges for bot {bot}: {e}")
+        if self.bots:
+            for bot, bot_data in self.bots.items():
+                if 'ip_ranges_url' in bot_data:
+                    try:
+                        self.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
+                    except Exception as e:
+                        logging.error(f"Error fetching IP ranges for bot {bot}: {e}")

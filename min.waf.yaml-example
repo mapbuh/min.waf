@@ -109,3 +109,24 @@ detail_lines: 12
 refresh_time: 1
 ua_stats: true
 url_stats: true
+sql_injection_signatures:
+- "UNION SELECT"
+- "SELECT * FROM"
+- "DROP TABLE"
+- "INSERT INTO"
+- "UPDATE SET"
+- "DELETE FROM"
+- "OR '1'='1"
+- 'OR "1"="1"'
+- "OR 1=1"
+php_injection_signatures:
+- "system("
+- "exec("
+- "shell_exec("
+- "passthru("
+- "popen("
+- "proc_open("
+- "eval("
+- "assert("
+- "preg_replace("
+- "create_function("
