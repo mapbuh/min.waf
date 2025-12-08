@@ -243,9 +243,6 @@ class Proxy:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.harmful_patterns:
-                if self.config.config.getboolean("dev", "debug"):
-                    logger.debug(dirty_data.decode(errors='ignore'))
-                    logger.debug(f"Checking for signature: {signature}")
                 if signature.encode().lower() in dirty_data.lower():
                     logger.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
