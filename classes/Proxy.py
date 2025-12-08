@@ -238,6 +238,8 @@ class Proxy:
             request_clean_upto: int,
     ) -> bool:
         logger = logging.getLogger("min.waf")
+        if self.config.config.getboolean("dev", "debug"):
+            logger.debug(request_whole.decode(errors='ignore'))
         if self.config.config.getboolean("main", "inspect_packets"):
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
