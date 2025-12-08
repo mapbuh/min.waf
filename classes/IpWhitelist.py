@@ -19,20 +19,21 @@ class IpWhitelist:
 
     @lru_cache(maxsize=1024)
     def is_whitelisted(self, host: str, ip: str, user_agent: str) -> bool:
+        logger = logging.getLogger("min.waf")
         for net in self.config.getlist('main', 'whitelist'):
             if ipaddress.ip_address(ip) in ipaddress.ip_network(net):
                 if self.config.config.getboolean('log', 'whitelist'):
-                    logging.debug(f"{ip} permanent whitelist match in {net}")
+                    logger.debug(f"{ip} permanent whitelist match in {net}")
                 return True
         try:
             if host in self.whitelist:
                 if ip in self.whitelist[host].values():
                     self.whitelist[host].touch(ip)
                     if self.config.config.getboolean('log', 'whitelist'):
-                        logging.debug(f"{ip} found in temporary whitelist for host {host}")
+                        logger.debug(f"{ip} found in temporary whitelist for host {host}")
                     return True
         except ValueError as err:
-            logging.warning(f"Whitelist checking {ip} {err=}")
+            logger.warning(f"Whitelist checking {ip} {err=}")
         for bot, networks in self.config.whitelist_bots.items():
             if bot in user_agent:
                 for net in networks:
@@ -41,7 +42,7 @@ class IpWhitelist:
                             self.config.config.getboolean('log', 'whitelist')
                             and self.config.config.getboolean('log', 'bots')
                         ):
-                            logging.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
+                            logger.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
                         return True
         return False
 

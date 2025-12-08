@@ -31,15 +31,16 @@ class Nginx:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
+        logger = logging.getLogger("min.waf")
         if log_line.ip.strip() == '' and log_line.host.strip() == '':
-            # logging.debug(f"empty request: {line}")
+            # logger.debug(f"empty request: {line}")
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
             if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
-                logging.debug(f"{log_line.ip} good bot: {log_line.ua}")
+                logger.debug(f"{log_line.ip} good bot: {log_line.ua}")
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
             IpTables.ban(log_line.ip, rts, config, None)
@@ -47,7 +48,7 @@ class Nginx:
         if Bots.bad_bot(config, log_line.ua):
             IpTables.ban(log_line.ip, rts, config)
             if config.config.getboolean('log', 'bots'):
-                logging.info(f"{log_line.ip} banned; Bad bot detected: {log_line.ua}")
+                logger.info(f"{log_line.ip} banned; Bad bot detected: {log_line.ua}")
             return Nginx.STATUS_BANNED
         if rts.ip_whitelist.is_trigger(log_line.host, log_line.ip, log_line.path, log_line.http_status):
             return Nginx.STATUS_OK
