@@ -26,7 +26,8 @@ class Config:
     def harmful_patterns(self) -> list[str]:
         sql_injections = self.getlist('signatures', 'sql_injections')
         php_injections = self.getlist('signatures', 'php_injections')
-        return sql_injections + php_injections
+        node_injections = self.getlist('signatures', 'node_injections')
+        return sql_injections + php_injections + node_injections
 
     @property
     @functools.lru_cache()
