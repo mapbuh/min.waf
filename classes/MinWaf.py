@@ -46,7 +46,7 @@ class MinWaf:
         elif signum == signal.SIGHUP:
             logger.info(f"Received signal {signum}, reloading config...")
             self.config.load()
-            self.rts.load()
+            self.rts.ip_blacklist.load()
         else:
             logger.warning(f"Received unknown signal {signum}, ignoring...")
 
