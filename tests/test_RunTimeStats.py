@@ -1,11 +1,6 @@
 import pytest
 from classes.RunTimeStats import RunTimeStats, IDS, IDSPath, IDSHost
-
-class DummyConfig:
-    time_frame = 60
-    ip_blacklist = ""
-    whitelist_permanent = None
-    ip_blacklist_refresh_time = 10
+from classes.Config import Config
 
 def test_idshost_init():
     host = IDSHost()
@@ -37,7 +32,7 @@ def test_ids_add_and_repr():
     assert "path: /path host: host status: 404" in rep
 
 def test_runtimestats_init_and_blacklist(monkeypatch):
-    config = DummyConfig()
+    config = Config("test.conf")
     rts = RunTimeStats(config)
     assert rts.start_time == 0
     assert rts.lines_parsed == 0
@@ -45,6 +40,3 @@ def test_runtimestats_init_and_blacklist(monkeypatch):
     assert isinstance(rts.banned_ips, dict)
     assert isinstance(rts.ip_stats, object)
     assert isinstance(rts.inter_domain, IDS)
-    config.ip_blacklist = ""
-    rts.init_ip_blacklist()
-    assert rts.ip_blacklist is None

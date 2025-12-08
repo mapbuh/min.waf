@@ -17,10 +17,13 @@ class IpBlacklist:
         self.refresh_list()
 
     def refresh_list(self) -> None:
-        if not self.config.ip_blacklist:
+        if not self.config.config.get('main', 'ip_blacklist', fallback=''):
             return
-        if not self.is_file_recent(self.filename, self.config.ip_blacklist_refresh_time):
-            self.download_file(self.config.ip_blacklist, self.filename)
+        refresh_time = self.config.config.getint(
+            'main', 'ip_blacklist_refresh_time', fallback=3600
+        )
+        if not self.is_file_recent(self.filename, refresh_time):
+            self.download_file(self.config.config.get('main', 'ip_blacklist'), self.filename)
         elif pathlib.Path(self.filename + ".downloaded").exists():
             with open(self.filename, 'r') as f:
                 self.list = f.read().splitlines()
@@ -55,6 +58,7 @@ class IpBlacklist:
     @lru_cache(maxsize=1024)
     def is_ip_blacklisted(self, ip: str) -> bool:
         if ip in self.list:
-            logging.debug(f"{ip} banned; found in blacklist")
+            if self.config.config.getboolean('log', 'blacklist'):
+                logging.debug(f"{ip} banned; found in blacklist")
             return True
         return False

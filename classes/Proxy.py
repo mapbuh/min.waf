@@ -14,13 +14,13 @@ from classes.PrintStats import PrintStats
 from classes.RunTimeStats import RunTimeStats
 
 
-class MinProxy:
+class Proxy:
     def __init__(self, config: Config, rts: RunTimeStats) -> None:
         self.config = config
         self.rts = rts
 
-        host = config.proxy_listen_host
-        port = config.proxy_listen_port
+        host = config.config.get("main", "host")
+        port = int(config.config.get("main", "port"))
         s = socket.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))
@@ -43,7 +43,7 @@ class MinProxy:
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
                     IpTables.unban_expired(self.config, self.rts)
-                    if self.config.ip_blacklist and self.rts.ip_blacklist:
+                    if self.config.config.get("main", "ip_blacklist") and self.rts.ip_blacklist:
                         self.rts.ip_blacklist.refresh_list()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
@@ -81,7 +81,7 @@ class MinProxy:
         while True:
             try:
                 data = nginx_socket.recv(buff_size)
-                if self.config.inspect_packets:
+                if self.config.config.getboolean("main", "inspect_packets"):
                     request_whole += data
             except ConnectionResetError:
                 nginx_socket.close()
@@ -99,7 +99,7 @@ class MinProxy:
         if ip_match:
             log_line_data['ip'] = ip_match.group(1).strip()
             if log_line_data['ip'] in self.rts.banned_ips.keys():
-                logging.info(f"Connection from banned IP {log_line_data['ip']} rejected")
+                # logging.info(f"Connection from banned IP {log_line_data['ip']} rejected")
                 nginx_socket.close()
                 return
         ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
@@ -169,7 +169,7 @@ class MinProxy:
             for sock in read_sockets:
                 try:
                     data = sock.recv(buff_size)
-                    if self.config.inspect_packets:
+                    if self.config.config.getboolean("main", "inspect_packets"):
                         if sock == nginx_socket:
                             request_whole += data
                         else:
@@ -236,33 +236,24 @@ class MinProxy:
             request_whole: bytes,
             request_clean_upto: int,
     ) -> bool:
-        if self.config.inspect_packets:
+        if self.config.config.getboolean("main", "inspect_packets"):
             # Inspect only the new data since last clean point
-            dirty_data_from: int = request_clean_upto - self.config.longest_signature + 1
+            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
             if dirty_data_from < 0:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
-            for signature in self.config.sql_injection_signatures:
+            for signature in self.config.harmful_patterns:
                 if signature.encode().lower() in dirty_data.lower():
-                    logging.info(f"SQL Injection signature detected: {signature}")
-                    # Drop the connection by not sending data upstream
-                    return False
-            for signature in self.config.php_injection_signatures:
-                if signature.encode().lower() in dirty_data.lower():
-                    logging.info(f"PHP Injection signature detected: {signature}")
+                    logging.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
         return True
-    
+
     def is_safe_header(self, path: str) -> bool:
-        if self.config.inspect_packets:
-            for signature in self.config.sql_injection_signatures:
+        if self.config.config.getboolean("main", "inspect_packets"):
+            for signature in self.config.harmful_patterns:
                 if signature.lower() in urllib.parse.unquote(path).lower():
-                    logging.info(f"SQL Injection signature detected in header: {signature}")
-                    return False
-            for signature in self.config.php_injection_signatures:
-                if signature.lower() in urllib.parse.unquote(path).lower():
-                    logging.info(f"PHP Injection signature detected in header: {signature}")
+                    logging.info(f"Harmful signature detected in header: {signature}")
                     return False
         return True

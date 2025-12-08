@@ -32,13 +32,11 @@ git clone https://github.com/mapbuh/min.waf.git
 ```
 2. Install the dependencies
 ```
-apt install python3-pyyaml python3-requests python3-inotify python3-yappi
+apt install python3-requests python3-yappi
 ```
-3. Create configuration using the examples and copy it to /etc/min.waf.yaml
+3. Create configuration using the examples and copy it to /etc/min.waf.conf
 ```
-cp min.waf.yaml-example /etc/min.waf.yaml
-cp min.waf.whitelist-example /etc/min.waf.whitelist
-vim -p /etc/min.waf.yaml /etc/min.waf.whitelist
+cp min.waf.conf-example /etc/min.waf.conf
 ```
 4. Edit and copy min.waf.service to /etc/systemd/system/min.waf.service
 ```

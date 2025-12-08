@@ -71,24 +71,19 @@ class RunTimeStats:
         self.lines_parsed: int = 0
         self.ip_whitelist: IpWhitelist = IpWhitelist(config)
         self.banned_ips: dict[str, float] = {}
-        self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
-        self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
-        self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.time_frame)
+        self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
+        self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
+        self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.bans: int = 0
         self.inter_domain: IDS = IDS()
         self.ip_blacklist: IpBlacklist | None = None
 
     def load(self) -> None:
         self.init_ip_blacklist()
-        self.init_ip_whitelist()
-
-    def init_ip_whitelist(self) -> None:
-        logging.info("Initializing IP whitelist")
-        self.ip_whitelist.whitelist_load_permanent()
 
     def init_ip_blacklist(self) -> None:
         logging.info("Initializing IP blacklist")
-        if self.config.ip_blacklist:
+        if self.config.config.get('main', 'ip_blacklist'):
             self.ip_blacklist = IpBlacklist(self.config)
         else:
             self.ip_blacklist = None

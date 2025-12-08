@@ -1,13 +1,13 @@
 import pytest
-from classes.Proxy import MinProxy
+from classes.Proxy import Proxy
 from classes.Config import Config
 from classes.RunTimeStats import RunTimeStats
 
 
 def test_proxy_inspect(monkeypatch: pytest.MonkeyPatch):
-    config = Config()
+    config = Config("test.conf")
     rts = RunTimeStats(config)
-    proxy = MinProxy.__new__(MinProxy)  # Don't call __init__
+    proxy = Proxy.__new__(Proxy)  # Don't call __init__
     proxy.config = config
     proxy.rts = rts
 
@@ -76,6 +76,11 @@ def test_proxy_inspect(monkeypatch: pytest.MonkeyPatch):
     request_clean_upto = 0
     # Call the method
     result: bool = proxy.is_safe(request_whole, request_clean_upto)
+    assert isinstance(result, bool)
+    assert result is False
+
+    # sql inject in header
+    result: bool = proxy.is_safe_header("DrOp%20TaBlE")
     assert isinstance(result, bool)
     assert result is False
 

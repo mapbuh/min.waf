@@ -1,7 +1,6 @@
 from typing import Any
 from classes.ExpiringList import ExpiringList
 from classes.LogLine import LogLine
-from classes.Config import Config
 
 
 class IpData:
@@ -73,14 +72,6 @@ class IpData:
             unique_paths.add(line.path)
             if line.http_status in good_statuses:
                 continue
-            for ext in Config.static_files:
-                if line.path.endswith(ext):
-                    score += 0.1
-                    break
-            for ext in Config.dynamic_files:
-                if line.path.endswith(ext):
-                    score += 2.0
-                    break
             score += 1.0  # base score for bad status
         if count > 3 and self.key_name == 'ip':
             IpData.all_status_scores[self.key] = score

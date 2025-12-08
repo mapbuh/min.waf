@@ -1,7 +1,4 @@
 __pycache__
 ip_blacklist.txt*
 .vscode
-min.waf.yaml
-min.waf.second.yaml
-min.waf.interactive.yaml
 .coverage

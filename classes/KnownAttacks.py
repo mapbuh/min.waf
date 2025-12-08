@@ -23,7 +23,7 @@ class KnownAttacks:
     def is_known(config: Config, log_line: LogLine) -> bool:
         if log_line.http_status not in [404, 500]:
             return False
-        for attack in config.known_attacks:
+        for attack in config.getlist('main', 'known_attacks'):
             if attack.lower() in log_line.req.lower():
                 logging.info(f"{log_line.ip} banned; Known attack detected: {log_line.req}")
                 return True

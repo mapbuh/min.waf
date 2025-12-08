@@ -1,159 +1,92 @@
+import configparser
+import functools
+import ipaddress
 import logging
+import os
 import requests
-import yaml
 
 
 class Config:
-    # when reloading config, these keys will not be changed
-    immutables: list[str] = ['mode', 'url_stats', 'ua_stats']
-    config_file_path: str = ""
-    columns: dict[str, int] = {
-        "remote_addr": -1,
-        "host": -1,
-        "time_local": -1,
-        "request": -1,
-        "status": -1,
-        "upstream_response_time": -1,
-        "http_referer": -1,
-        "http_user_agent": -1,
-    }
-    time_frame = 300
-    debug: bool = False
-    ban_time = 600
-    url_stats = False
-    ua_stats = False
-    lockfile: str = "/var/run/min.waf.pid"
-    detail_lines: int = 12
-    refresh_time: int = 60
-    whitelist_triggers: dict[str, list[dict[str, str]]] = {}
-    log_file_path: str = ""
-    good_bots: dict[str, list[str]] = {}
-    bad_bots: dict[str, list[str]] = {}
-    known_attacks: list[str] = []
-    http_status_bad_threshold: float = 0.51
-    proxy_listen_host: str = "127.0.0.1"
-    proxy_listen_port: int = 9009
-    # wait at list this many seconds between first and last request
-    steal_over_time: int = 10
-    # if total stolen time is more than this, consider it stealing
-    steal_total: int = 10
-    # if ratio of stolen/available time is more than this, consider it stealing
-    steal_ratio: float = 0.3
-    ip_blacklist: str = ''
-    ip_blacklist_refresh_time: int = 3600
-    iptables_chain: str = "MINWAF"
-    mode: str = "proxy"  # or "log2ban"
-    whitelist_expiration: int = 36000  # 10 hours, a working day plus few hours
-    whitelist_permanent: str = ""  # path to permanent whitelist file
-    profiling: bool = False  # enable profiling with yappi
-    static_files: list[str] = [
-        ".css",
-        ".eot",
-        ".gif",
-        ".ico",
-        ".jpeg",
-        ".jpg",
-        ".js",
-        ".json",
-        ".mp3",
-        ".mp4",
-        ".ogg",
-        ".otf",
-        ".png",
-        ".svg",
-        ".ttf",
-        ".txt",
-        ".wav",
-        ".webm",
-        ".woff",
-        ".woff2",
-        ".xml",
-    ]
-    dynamic_files: list[str] = [
-        ".asp",
-        ".aspx",
-        ".bin",
-        ".cgi",
-        ".dll",
-        ".exe",
-        ".jsp",
-        ".php",
-        ".pl",
-        ".py",
-        ".rb",
-        ".sh",
-    ]
-    bots: dict[str, dict[str, str]] = {
-        'Bing': {
-            'user_agent': 'Bingbot',
-            'ip_ranges_url': 'https://www.bing.com/toolbox/bingbot.json',
-            'action': 'allow',
-        },
-        'DuckDuckGo': {
-            'user_agent': 'DuckDuckBot',
-            'ip_ranges_url': 'https://duckduckgo.com/duckduckbot.json',
-            'action': 'allow',
-        },
-        'Google': {
-            'user_agent': 'Google',
-            'ip_ranges_url': 'https://developers.google.com/static/search/apis/ipranges/googlebot.json',
-            'action': 'allow',
-        },
-        'OAI-GPTBot': {
-            'user_agent': 'GPTBot',
-            'ip_ranges_url': 'https://openai.com/gptbot.json',
-            'action': 'allow',
-        },
-        'OAI-SearchBot': {
-            'user_agent': 'OAI-SearchBot',
-            'ip_ranges_url': 'https://openai.com/searchbot.json',
-            'action': 'allow',
-        },
-    }
-    whitelist_log: bool = False
-    inspect_packets: bool = True
-    sql_injection_signatures: list[str] = [
-        "UNION SELECT",
-        "SELECT * FROM",
-        "drop TABLE",
-        "INSERT INTO",
-        "UPDATE SET",
-        "DELETE FROM",
-        "OR '1'='1",
-        'OR "1"="1"',
-    ]
-    php_injection_signatures: list[str] = [
-        "system(",
-        "exec(",
-        "shell_exec(",
-        "passthru(",
-        "popen(",
-        "proc_open(",
-        "eval(",
-        "assert(",
-        "preg_replace(",
-        "create_function(",
-    ]
-    longest_signature: int = 0
+    def __init__(self, filename: str) -> None:
+        self.filename: str = filename
+        self.load()
 
-    def __init__(self) -> None:
-        for signature in self.sql_injection_signatures + self.php_injection_signatures:
-            if len(signature) > self.longest_signature:
-                self.longest_signature = len(signature)
+    def load(self) -> None:
+        minwaf_path: str = os.path.dirname(os.path.realpath(__file__)) + "/.."
+        self.config = configparser.ConfigParser()
+        self.config.read(minwaf_path + "/defaults.conf")
+        self.config.read(self.filename)
+        self.whitelist_bots  # preload bot whitelist
 
-    def load(self, filepath: str) -> None:
-        self.config_file_path = filepath
-        with open(filepath, "r") as f:
-            data = yaml.safe_load(f)
-            for key, value in data.items():
-                if hasattr(self, key):
-                    if key in self.immutables:
-                        continue
-                    setattr(self, key, value)
-        if self.bots:
-            for bot, bot_data in self.bots.items():
-                if 'ip_ranges_url' in bot_data:
-                    try:
-                        self.bots[bot]['ip_ranges'] = requests.get(bot_data['ip_ranges_url']).json().get('prefixes', [])
-                    except Exception as e:
-                        logging.error(f"Error fetching IP ranges for bot {bot}: {e}")
+    def getlist(self, section: str, option: str) -> list[str]:
+        return [s for s in self.config.get(section, option).split("\n") if s]
+
+    @property
+    @functools.lru_cache()
+    def harmful_patterns(self) -> list[str]:
+        sql_injections = self.getlist('signatures', 'sql_injections')
+        php_injections = self.getlist('signatures', 'php_injections')
+        return sql_injections + php_injections
+
+    @property
+    @functools.lru_cache()
+    def longest_harmful_pattern(self) -> int:
+        longest = 0
+        for pattern in self.harmful_patterns:
+            if len(pattern) > longest:
+                longest = len(pattern)
+        return longest
+
+    @property
+    @functools.lru_cache()
+    def whitelist_triggers(self) -> list[dict[str, str | int]]:
+        triggers: list[dict[str, str | int]] = []
+        for section in self.config.sections():
+            if section.startswith('whitelist_trigger.'):
+                host = self.config.get(section, 'host')
+                path = self.config.get(section, 'path')
+                status = self.config.getint(section, 'status')
+                triggers.append({
+                    'host': host,
+                    'path': path,
+                    'status': status
+                })
+        return triggers
+
+    @functools.lru_cache()
+    def whitelist_host_triggers(self, host: str) -> list[dict[str, str | int]]:
+        return [t for t in self.whitelist_triggers if t['host'] == host]
+
+    @property
+    @functools.lru_cache()
+    def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+        bot_sections: list[str] = []
+        for section in self.config.sections():
+            if section.startswith('bots.'):
+                bot_sections.append(section)
+
+        whitelist_bots: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        for section in bot_sections:
+            if (
+                self.config.get(section, 'action') == 'allow'
+                and self.config.get(section, 'ip_ranges_url')
+            ):
+                try:
+                    response = requests.get(self.config.get(section, 'ip_ranges_url'), timeout=10)
+                    response.raise_for_status()
+                    data = response.json()
+                    prefixes = data.get('prefixes', [])
+                    for prefix in prefixes:
+                        ip_prefix = prefix.get('ipv4Prefix') or prefix.get('ipv6Prefix')
+                        if ip_prefix:
+                            try:
+                                user_agent = self.config.get(section, 'user_agent')
+                                if user_agent not in whitelist_bots:
+                                    whitelist_bots[user_agent] = []
+                                whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
+                            except ValueError:
+                                logging.warning(f"Invalid network in bot whitelist: {ip_prefix}")
+                    logging.info(f"Loaded {len(prefixes)} IP ranges for bot {section}")
+                except Exception as e:
+                    logging.warning(f"Failed to load IP ranges for bot {section}: {e}")
+        return whitelist_bots

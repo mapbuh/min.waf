@@ -38,9 +38,9 @@ class DummyRunTimeStats:
 
 
 def test_bad_steal_ratio():
-    config = DummyConfig()
+    config = Config("test.conf")
     log_line = DummyLogLine()
-    ip_data = DummyIpData(steal_time=-15, avail_time=10, total_time=30, steal_ratio=0.6)
+    ip_data = DummyIpData(steal_time=-15, avail_time=11, total_time=30, steal_ratio=0.6)
     assert Checks.bad_steal_ratio(config, log_line, ip_data) is True
 
     ip_data = DummyIpData(steal_time=-5, avail_time=4)

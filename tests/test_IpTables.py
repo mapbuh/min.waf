@@ -1,5 +1,6 @@
 import pytest
 import time
+from classes.Config import Config
 from classes.IpTables import IpTables
 
 class DummyConfig:
@@ -14,7 +15,7 @@ class DummyRunTimeStats:
 def test_clear_and_init(monkeypatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = DummyConfig()
+    config = Config("test.conf")
     IpTables.clear(config)
     assert any("iptables" in c[0] or "ip6tables" in c[0] for c in calls)
     calls.clear()
@@ -24,7 +25,7 @@ def test_clear_and_init(monkeypatch):
 def test_slow_ipv4(monkeypatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = DummyConfig()
+    config = Config("test.conf")
     rts = DummyRunTimeStats()
     IpTables.slow("1.2.3.4", config, rts)
     assert "1.2.3.4" in rts.banned_ips
@@ -33,7 +34,7 @@ def test_slow_ipv4(monkeypatch):
 def test_slow_ipv6(monkeypatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = DummyConfig()
+    config = Config("test.conf")
     rts = DummyRunTimeStats()
     IpTables.slow("abcd::1234", config, rts)
     assert "abcd::1234" in rts.banned_ips
@@ -42,7 +43,7 @@ def test_slow_ipv6(monkeypatch):
 def test_ban(monkeypatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = DummyConfig()
+    config = Config("test.conf")
     rts = DummyRunTimeStats()
     IpTables.ban("1.2.3.4", rts, config)
     assert "1.2.3.4" in rts.banned_ips
@@ -52,9 +53,9 @@ def test_ban(monkeypatch):
 def test_unban_expired(monkeypatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = DummyConfig()
+    config = Config("test.conf")
     rts = DummyRunTimeStats()
-    rts.banned_ips["1.2.3.4"] = time.time() - 20
+    rts.banned_ips["1.2.3.4"] = time.time() - 3600  # expired
     IpTables.unban_expired(config, rts)
     assert "1.2.3.4" not in rts.banned_ips
     assert any("iptables" in c[0] for c in calls)
