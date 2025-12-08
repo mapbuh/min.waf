@@ -238,8 +238,6 @@ class Proxy:
             request_clean_upto: int,
     ) -> bool:
         logger = logging.getLogger("min.waf")
-        if self.config.config.getboolean("dev", "debug"):
-            logger.debug(request_whole.decode(errors='ignore'))
         if self.config.config.getboolean("main", "inspect_packets"):
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
@@ -247,6 +245,9 @@ class Proxy:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.harmful_patterns:
+                if self.config.config.getboolean("dev", "debug"):
+                    logger.debug(dirty_data.decode(errors='ignore'))
+                    logger.debug(f"Checking for signature: {signature}")
                 if signature.encode().lower() in dirty_data.lower():
                     logger.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
