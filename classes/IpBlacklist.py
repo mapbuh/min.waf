@@ -1,63 +1,36 @@
 import logging
-import os
-import pathlib
-import requests
+import random
 import time
 from classes.Config import Config
 from functools import lru_cache
+from classes import Utils
 
 
 class IpBlacklist:
 
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.list: list[str] = []
-        current_dir = os.path.dirname(os.path.abspath(__file__))
-        self.filename = os.path.join(current_dir, "../ip_blacklist.txt")
-        self.refresh_list()
+        self.list_valid_until = 0
+        self.load()
 
-    def refresh_list(self) -> None:
+    def load(self) -> None:
         if not self.config.config.get('main', 'ip_blacklist', fallback=''):
+            self.list = []
             return
-        refresh_time = self.config.config.getint(
-            'main', 'ip_blacklist_refresh_time', fallback=3600
+        blacklist = Utils.requests_get_cached(
+            self.config.config.get('main', 'ip_blacklist'),
+            timeout=10,
+            since=self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
         )
-        if not self.is_file_recent(self.filename, refresh_time):
-            self.download_file(self.config.config.get('main', 'ip_blacklist'), self.filename)
-        elif pathlib.Path(self.filename + ".downloaded").exists():
-            with open(self.filename, 'r') as f:
-                self.list = f.read().splitlines()
-                self.is_ip_blacklisted.cache_clear()
-            pathlib.Path(self.filename + ".downloaded").unlink(missing_ok=True)
-        elif not self.list:
-            with open(self.filename, 'r') as f:
-                self.list = f.read().splitlines()
-
-    def is_file_recent(self, filename: str, max_age_seconds: int) -> bool:
-        if not os.path.exists(filename):
-            return False
-        mtime = os.path.getmtime(filename)
-        return (time.time() - mtime) < max_age_seconds
-
-    def download_file(self, url: str, filename: str) -> None:
-        if os.path.exists(filename + ".downloading"):
-            return
-        if os.fork() == 0:
-            try:
-                pathlib.Path(filename + ".downloading").touch()
-                response = requests.get(url)
-                response.raise_for_status()  # Ensure we notice bad responses
-                with open(filename, 'wb') as f:
-                    f.write(response.content)
-                    pathlib.Path(filename + ".downloading").unlink(missing_ok=True)
-                    pathlib.Path(filename + ".downloaded").touch()
-            except requests.exceptions.HTTPError:
-                pathlib.Path(filename + ".downloading").unlink(missing_ok=True)
-            os._exit(0)
+        self.list: list[str] = blacklist.decode().splitlines()
+        self.list_valid_until = time.time() + random.randint(0, 60) + \
+            self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
 
     @lru_cache(maxsize=1024)
     def is_ip_blacklisted(self, ip: str) -> bool:
         logger = logging.getLogger("min.waf")
+        if time.time() > self.list_valid_until:
+            self.load()
         if ip in self.list:
             if self.config.config.getboolean('log', 'blacklist'):
                 logger.debug(f"{ip} banned; found in blacklist")

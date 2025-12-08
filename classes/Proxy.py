@@ -43,8 +43,6 @@ class Proxy:
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
                     IpTables.unban_expired(self.config, self.rts)
-                    if self.config.config.get("main", "ip_blacklist") and self.rts.ip_blacklist:
-                        self.rts.ip_blacklist.refresh_list()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
                     PrintStats.log_stats(self.rts)
