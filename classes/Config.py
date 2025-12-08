@@ -3,6 +3,7 @@ import functools
 import ipaddress
 import logging
 import os
+import random
 
 from classes import Utils
 
@@ -77,7 +78,7 @@ class Config:
                     data = Utils.requests_get_cached_json(
                         self.config.get(section, 'ip_ranges_url'),
                         timeout=10,
-                        since=86400
+                        since=86400 + random.randint(0, 60)
                     )
                     prefixes = data.get('prefixes', [])
                     for prefix in prefixes:
