@@ -3,7 +3,8 @@ import functools
 import ipaddress
 import logging
 import os
-import requests
+
+from classes import Utils
 
 
 class Config:
@@ -25,7 +26,8 @@ class Config:
     def harmful_patterns(self) -> list[str]:
         sql_injections = self.getlist('signatures', 'sql_injections')
         php_injections = self.getlist('signatures', 'php_injections')
-        return sql_injections + php_injections
+        node_injections = self.getlist('signatures', 'node_injections')
+        return sql_injections + php_injections + node_injections
 
     @property
     @functools.lru_cache()
@@ -72,9 +74,11 @@ class Config:
                 and self.config.get(section, 'ip_ranges_url')
             ):
                 try:
-                    response = requests.get(self.config.get(section, 'ip_ranges_url'), timeout=10)
-                    response.raise_for_status()
-                    data = response.json()
+                    data = Utils.requests_get_cached_json(
+                        self.config.get(section, 'ip_ranges_url'),
+                        timeout=10,
+                        since=86400
+                    )
                     prefixes = data.get('prefixes', [])
                     for prefix in prefixes:
                         ip_prefix = prefix.get('ipv4Prefix') or prefix.get('ipv6Prefix')

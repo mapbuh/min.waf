@@ -43,8 +43,6 @@ class Proxy:
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
                     IpTables.unban_expired(self.config, self.rts)
-                    if self.config.config.get("main", "ip_blacklist") and self.rts.ip_blacklist:
-                        self.rts.ip_blacklist.refresh_list()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
                     PrintStats.log_stats(self.rts)
@@ -245,6 +243,9 @@ class Proxy:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.harmful_patterns:
+                if self.config.config.getboolean("dev", "debug"):
+                    logger.debug(dirty_data.decode(errors='ignore'))
+                    logger.debug(f"Checking for signature: {signature}")
                 if signature.encode().lower() in dirty_data.lower():
                     logger.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
