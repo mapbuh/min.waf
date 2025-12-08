@@ -13,12 +13,9 @@ def main(
     config: str,
 ) -> None:
     configObj: Config = Config(config)
-    # Load config file
-    logging.basicConfig(
-        format="%(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        level=logging.DEBUG if configObj.config.getboolean("dev", "debug", fallback=False) else logging.INFO,
-    )
+
+    logger = logging.getLogger("min.waf")
+    logger.setLevel(logging.DEBUG if configObj.config.getboolean('dev', 'debug') else logging.INFO)
 
     MinWaf(configObj)
 

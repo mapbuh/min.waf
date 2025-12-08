@@ -82,7 +82,8 @@ class RunTimeStats:
         self.init_ip_blacklist()
 
     def init_ip_blacklist(self) -> None:
-        logging.info("Initializing IP blacklist")
+        logger = logging.getLogger("min.waf")
+        logger.info("Initializing IP blacklist")
         if self.config.config.get('main', 'ip_blacklist'):
             self.ip_blacklist = IpBlacklist(self.config)
         else:

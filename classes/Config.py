@@ -16,7 +16,6 @@ class Config:
         self.config = configparser.ConfigParser()
         self.config.read(minwaf_path + "/defaults.conf")
         self.config.read(self.filename)
-        self.whitelist_bots  # preload bot whitelist
 
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]
@@ -26,8 +25,7 @@ class Config:
     def harmful_patterns(self) -> list[str]:
         sql_injections = self.getlist('signatures', 'sql_injections')
         php_injections = self.getlist('signatures', 'php_injections')
-        node_injections = self.getlist('signatures', 'node_injections')
-        return sql_injections + php_injections + node_injections
+        return sql_injections + php_injections
 
     @property
     @functools.lru_cache()
@@ -61,6 +59,7 @@ class Config:
     @property
     @functools.lru_cache()
     def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+        logger = logging.getLogger("min.waf")
         bot_sections: list[str] = []
         for section in self.config.sections():
             if section.startswith('bots.'):
@@ -86,8 +85,8 @@ class Config:
                                     whitelist_bots[user_agent] = []
                                 whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
-                                logging.warning(f"Invalid network in bot whitelist: {ip_prefix}")
-                    logging.info(f"Loaded {len(prefixes)} IP ranges for bot {section}")
+                                logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
+                    logger.info(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
-                    logging.warning(f"Failed to load IP ranges for bot {section}: {e}")
+                    logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
         return whitelist_bots

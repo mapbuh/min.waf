@@ -48,6 +48,7 @@ class IpWhitelist:
     @lru_cache(maxsize=1024)
     # not passing log_line to make cache effective
     def is_trigger(self, host: str, ip: str, path: str, http_status: int) -> bool:
+        logger = logging.getLogger("min.waf")
         for trigger in self.config.whitelist_host_triggers(host):
             if path == trigger['path'] and str(http_status) == str(trigger['status']):
                 if host not in self.whitelist:
@@ -55,7 +56,7 @@ class IpWhitelist:
                         expiration_time=self.config.config.getint('main', 'whitelist_expiration'))
                 self.whitelist[host].append(None, ip)
                 self.is_whitelisted.cache_clear()
-                logging.info(
+                logger.info(
                     f"{ip} whitelisted due to trigger "
                     f"on path {host}{path} with status "
                     f"{http_status}")

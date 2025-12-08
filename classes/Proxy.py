@@ -58,6 +58,7 @@ class Proxy:
                 t.join(1)
 
     def proxy_handle_client(self, nginx_socket: socket.socket, addr: tuple[str, int]) -> None:
+        logger = logging.getLogger("min.waf")
         waf_dest: str = ''
         header_end: bool = False
         upstream_socket: socket.socket | None = None
@@ -99,7 +100,7 @@ class Proxy:
         if ip_match:
             log_line_data['ip'] = ip_match.group(1).strip()
             if log_line_data['ip'] in self.rts.banned_ips.keys():
-                # logging.info(f"Connection from banned IP {log_line_data['ip']} rejected")
+                # logger.info(f"Connection from banned IP {log_line_data['ip']} rejected")
                 nginx_socket.close()
                 return
         ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
@@ -117,7 +118,7 @@ class Proxy:
             try:
                 upstream_socket.connect((host, port))
             except ConnectionRefusedError:
-                logging.info(f"Connection to WAF destination {waf_dest} refused")
+                logger.info(f"Connection to WAF destination {waf_dest} refused")
                 nginx_socket.close()
                 return
             if self.is_safe(
@@ -126,7 +127,7 @@ class Proxy:
             ):
                 upstream_socket.send(data)
             else:
-                logging.info(f"Dropping connection from {addr} due to detected injection attempt")
+                logger.info(f"Dropping connection from {addr} due to detected injection attempt")
                 nginx_socket.close()
                 upstream_socket.close()
                 return
@@ -149,7 +150,7 @@ class Proxy:
                 upstream_socket.close()
                 return
             if not self.is_safe_header(log_line_data['path']):
-                logging.info(f"Dropping connection from {addr} due to detected injection attempt in path")
+                logger.info(f"Dropping connection from {addr} due to detected injection attempt in path")
                 nginx_socket.close()
                 upstream_socket.close()
                 return
@@ -187,7 +188,7 @@ class Proxy:
                             ):
                                 upstream_socket.send(data)
                             else:
-                                logging.info(f"Dropping connection from {addr} due to detected injection attempt")
+                                logger.info(f"Dropping connection from {addr} due to detected injection attempt")
                                 nginx_socket.close()
                                 upstream_socket.close()
                                 return
@@ -199,7 +200,7 @@ class Proxy:
                                 try:
                                     log_line_data['http_status'] = int(http_status)
                                 except ValueError:
-                                    logging.warning(f"Malformed HTTP status: '{http_status}' in response from {addr}")
+                                    logger.warning(f"Malformed HTTP status: '{http_status}' in response from {addr}")
                                     log_line_data['http_status'] = 0
                                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                                 log_line = LogLine(log_line_data)
@@ -236,6 +237,7 @@ class Proxy:
             request_whole: bytes,
             request_clean_upto: int,
     ) -> bool:
+        logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
@@ -244,16 +246,17 @@ class Proxy:
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.harmful_patterns:
                 if signature.encode().lower() in dirty_data.lower():
-                    logging.info(f"Harmful signature detected: {signature}")
+                    logger.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
         return True
 
     def is_safe_header(self, path: str) -> bool:
+        logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
             for signature in self.config.harmful_patterns:
                 if signature.lower() in urllib.parse.unquote(path).lower():
-                    logging.info(f"Harmful signature detected in header: {signature}")
+                    logger.info(f"Harmful signature detected in header: {signature}")
                     return False
         return True

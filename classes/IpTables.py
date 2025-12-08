@@ -170,4 +170,4 @@ class IpTables:
                         "--dport", "443",
                         "-j", "DROP",
                     ])
-                # logging.debug(f"{ip} unbanned after {config.ban_time}s")
+                # logger.debug(f"{ip} unbanned after {config.ban_time}s")
