@@ -22,7 +22,7 @@ class MinWaf:
         #    pass
         self.lockfile_init()
         IpTables.init(self.config)
-        self.rts.load()
+        self.rts.ip_blacklist.load()
         atexit.register(self.at_exit)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.signal_handler)
@@ -46,7 +46,7 @@ class MinWaf:
         elif signum == signal.SIGHUP:
             logger.info(f"Received signal {signum}, reloading config...")
             self.config.load()
-            self.rts.load()
+            self.rts.ip_blacklist.load()
         else:
             logger.warning(f"Received unknown signal {signum}, ignoring...")
 

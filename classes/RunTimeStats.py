@@ -1,5 +1,3 @@
-import logging
-
 from classes.IpBlacklist import IpBlacklist
 from classes.IpData import IpData
 from classes.ExpiringDict import ExpiringDict
@@ -76,15 +74,4 @@ class RunTimeStats:
         self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.bans: int = 0
         self.inter_domain: IDS = IDS()
-        self.ip_blacklist: IpBlacklist | None = None
-
-    def load(self) -> None:
-        self.init_ip_blacklist()
-
-    def init_ip_blacklist(self) -> None:
-        logger = logging.getLogger("min.waf")
-        logger.info("Initializing IP blacklist")
-        if self.config.config.get('main', 'ip_blacklist'):
-            self.ip_blacklist = IpBlacklist(self.config)
-        else:
-            self.ip_blacklist = None
+        self.ip_blacklist: IpBlacklist = IpBlacklist(config)
