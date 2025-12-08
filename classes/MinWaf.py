@@ -22,7 +22,7 @@ class MinWaf:
         #    pass
         self.lockfile_init()
         IpTables.init(self.config)
-        self.rts.load()
+        self.rts.ip_blacklist.load()
         atexit.register(self.at_exit)
         signal.signal(signal.SIGTERM, self.signal_handler)
         signal.signal(signal.SIGUSR1, self.signal_handler)
