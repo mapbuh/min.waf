@@ -36,6 +36,7 @@ class IpWhitelist:
             logger.warning(f"Whitelist checking {ip} {err=}")
         for bot, networks in self.config.whitelist_bots.items():
             if bot in user_agent:
+                print(bot, networks, user_agent)
                 for net in networks:
                     if ipaddress.ip_address(ip) in net:
                         if (
