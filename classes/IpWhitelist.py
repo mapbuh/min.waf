@@ -35,7 +35,7 @@ class IpWhitelist:
         except ValueError as err:
             logger.warning(f"Whitelist checking {ip} {err=}")
         for bot, networks in self.config.whitelist_bots.items():
-            if bot in user_agent:
+            if bot.lower() in user_agent.lower():
                 for net in networks:
                     if ipaddress.ip_address(ip) in net:
                         if (

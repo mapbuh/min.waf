@@ -50,13 +50,14 @@ class DummyConfig2(Config):
     def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
         return {
             "GoogleBot": [ipaddress.ip_network("8.8.8.0/24"), ipaddress.ip_network("7.7.7.0/24")],
+            "Bingbot": [ipaddress.ip_network("52.167.144.0/24")]
         }
 
 def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(IpTables, "ban", lambda self, ip_address, rts, config: None)
     config = DummyConfig2()
     rts = RunTimeStats(config)
-    rts.ip_blacklist.list = ["8.8.8.8", "9.9.9.9"]
+    rts.ip_blacklist.list = ["8.8.8.8", "9.9.9.9", "52.167.144.177"]
     assert rts.ip_blacklist.is_ip_blacklisted("8.8.8.8")
     assert rts.ip_whitelist.is_whitelisted("example.com", "8.8.8.8", "GoogleBot")
     # in bots AND in blacklist
@@ -73,4 +74,8 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
 
     # in neither
     log_line = LogLine(data={"ip": "10.10.10.10", "host": "example.com", "ua": "SomeOtherBot", "path": "/index.html", "http_status": 200})
+    assert Nginx.process_line(config, rts, log_line, "") == Nginx.STATUS_OK
+
+    # bingbot
+    log_line = LogLine(data={"ip": "52.167.144.177", "host": "www.example.com/articles/228923/Parvoto-izcyalo-onlajn-tok-shou--Kris-Nenkov-stana-vodesht", "ua": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36", "path": "/index.html", "http_status": 200})
     assert Nginx.process_line(config, rts, log_line, "") == Nginx.STATUS_OK
