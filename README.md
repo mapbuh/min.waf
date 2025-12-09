@@ -7,18 +7,20 @@ Main goal is to have virtually no false positives and not to disrupt normal oper
 
 ## Features
 
-1. Can be used with nginx with proxy_pass or reading access.log in real time
-2. Can read external list of IP addresses to ban at the moment they make request
-3. Supports local list of malicious url patterns
-4. Analyzes http statuses and bans users with more than 75% negative responses
-5. Detects addresses that frequently request long running urls and bans them (currently only logs them, needs finer tuning)
+1. Can be used with nginx with proxy_pass
+2. Supports whitelist of bots and ip addresses 
+3. Supports blacklist of bots and ip addresses
+4. Supports list of known attack url patterns
+5. Analyzes http statuses from given address and bans when given threshold is reached
+6. Supports list of known bad user agents that are banned on sight
+7. Performs deep packet inspection and guards against known sql inections, php exploits, node.js exploits (catches react2shell too)
+8. Analyzes long running responses from upstream and bans if certain threshold is reached by an ip address
 6. Support whitelisting triggers: when authorized access is detected to certain url (HTTP status 200), the requester address is added to whitelist for that certain vhost
 
 ## Prerequisites
 
 - Nginx installed and running as a reverse proxy
 - min.waf 
-- pyyaml
 - python-requests
 - Root or sudo privileges
 
@@ -58,12 +60,6 @@ systemctl daemon-reload && systemctl enable --now min.waf.service
             proxy_set_header 	    MinWaf-Dest <upstream address or hostname>:80;  # where to forward it after processing
             proxy_pass 		        http://127.0.0.1:9009;
     }
-```
-
-**Example `minwaf.conf`:**
-```yaml
-proxy_listen_host: 127.0.0.1
-proxy_listen_port: 9009
 ```
 
 ## Diagram
