@@ -125,6 +125,7 @@ class Proxy:
             ):
                 upstream_socket.send(data)
             else:
+                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                 logger.info(f"Dropping connection from {addr} due to detected injection attempt")
                 nginx_socket.close()
                 upstream_socket.close()
@@ -148,6 +149,7 @@ class Proxy:
                 upstream_socket.close()
                 return
             if not self.is_safe_header(log_line_data['path']):
+                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                 logger.info(f"Dropping connection from {addr} due to detected injection attempt in path")
                 nginx_socket.close()
                 upstream_socket.close()
@@ -186,6 +188,7 @@ class Proxy:
                             ):
                                 upstream_socket.send(data)
                             else:
+                                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                                 logger.info(f"Dropping connection from {addr} due to detected injection attempt")
                                 nginx_socket.close()
                                 upstream_socket.close()
