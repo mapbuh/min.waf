@@ -245,6 +245,7 @@ class Proxy:
             for signature in self.config.harmful_patterns:
                 if signature.encode().lower() in dirty_data.lower():
                     logger.info(f"Harmful signature detected: {signature}")
+                    logger.info(f"Dirty data: {request_whole}")
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
@@ -256,5 +257,6 @@ class Proxy:
             for signature in self.config.harmful_patterns:
                 if signature.lower() in urllib.parse.unquote(path).lower():
                     logger.info(f"Harmful signature detected in header: {signature}")
+                    logger.info(f"Dirty data: {path}")
                     return False
         return True
