@@ -157,6 +157,7 @@ class Proxy:
             log_line = LogLine(log_line_data)
             log_line_data['logged'] = True
             Nginx.process_line(self.config, self.rts, log_line, "")
+            nginx_socket.close()
             return
         header_end = False
         http_status: str = '200'
