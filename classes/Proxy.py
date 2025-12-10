@@ -74,7 +74,7 @@ class Proxy:
         buff_size = 8192
         data: bytes = b''
         request_whole: bytes = b''
-        response_whole: bytes = b''
+        # response_whole: bytes = b''
         request_clean_upto: int = 0
         # response_clean_upto: int = 0
         while True:
@@ -159,6 +159,7 @@ class Proxy:
             log_line = LogLine(log_line_data)
             log_line_data['logged'] = True
             Nginx.process_line(self.config, self.rts, log_line, "")
+            nginx_socket.close()
             return
         header_end = False
         http_status: str = '200'
@@ -173,8 +174,8 @@ class Proxy:
                     if self.config.config.getboolean("main", "inspect_packets"):
                         if sock == nginx_socket:
                             request_whole += data
-                        else:
-                            response_whole += data
+                        # else:
+                        #     response_whole += data
                     if not data:
                         # connection closed
                         nginx_socket.close()
@@ -240,6 +241,8 @@ class Proxy:
     ) -> bool:
         logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
+            if request_clean_upto >= self.config.config.getint("main", "max_inspect_size"):
+                return True
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
             if dirty_data_from < 0:
