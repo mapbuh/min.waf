@@ -238,6 +238,8 @@ class Proxy:
     ) -> bool:
         logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
+            if request_clean_upto >= self.config.config.getint("main", "max_inspect_size"):
+                return True
             # Inspect only the new data since last clean point
             dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
             if dirty_data_from < 0:
