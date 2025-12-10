@@ -1,6 +1,3 @@
 - use captcha before blocking
-- remove tools, use command parameter
-- organize in folders, move ip_blacklist.txt somewhere
-- make the whitelist expiring
 - fork on external blacklist update
-- save stats for ua and request path when blocking
+- honeypot mode. Instead of banning with ipchains, ban manually and log all requests from banned ips

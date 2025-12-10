@@ -41,3 +41,4 @@ def test_is_trigger(monkeypatch: pytest.MonkeyPatch):
     assert not ipw.is_trigger("otherhost", "5.6.7.8", "/foo", 200)
     assert ipw.is_whitelisted("example.com", "5.6.7.8", "Mozilla 5.0")
     assert not ipw.is_whitelisted("otherhost", "5.6.7.8", "Mozilla 5.0")
+    assert ipw.is_trigger("www.example.com", "5.6.7.8", "/nova-api/articles", 200)
