@@ -52,8 +52,6 @@ class Proxy:
         finally:
             if s:
                 s.close()
-            for t in all_threads:
-                t.join(1)
 
     def proxy_handle_client(self, nginx_socket: socket.socket, addr: tuple[str, int]) -> None:
         logger = logging.getLogger("min.waf")
