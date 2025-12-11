@@ -58,7 +58,7 @@ class IpData:
     def http_status_bad(self) -> float:
         good_statuses: list[int] = [200, 206, 499, 304]
         # ignore_statuses: list[int] = [301, 302, 303, 304, 307, 308]
-        ignore_statuses: list[int] = [304]
+        ignore_statuses: list[int] = [304, 301]
 
         unique_paths: set[str] = set()
         score = 0.0

@@ -1,3 +1,4 @@
 - use captcha before blocking
 - fork on external blacklist update
 - honeypot mode. Instead of banning with ipchains, ban manually and log all requests from banned ips
+- per host settings
