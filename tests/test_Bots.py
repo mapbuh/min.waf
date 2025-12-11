@@ -79,3 +79,4 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
     # bingbot
     log_line = LogLine(data={"ip": "52.167.144.177", "host": "www.example.com/articles/228923/Parvoto-izcyalo-onlajn-tok-shou--Kris-Nenkov-stana-vodesht", "ua": "Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm) Chrome/116.0.1938.76 Safari/537.36", "path": "/index.html", "http_status": 200})
     assert Nginx.process_line(config, rts, log_line, "") == Nginx.STATUS_OK
+

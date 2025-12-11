@@ -17,6 +17,8 @@ class IpBlacklist:
         if not self.config.config.get('main', 'ip_blacklist', fallback=''):
             self.list = []
             return
+        if time.time() < self.list_valid_until:
+            return
         blacklist = Utils.requests_get_cached(
             self.config.config.get('main', 'ip_blacklist'),
             timeout=10,

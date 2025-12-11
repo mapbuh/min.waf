@@ -43,6 +43,7 @@ class Proxy:
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
                     IpTables.unban_expired(self.config, self.rts)
+                    self.rts.ip_blacklist.load()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
                     PrintStats.log_stats(self.rts)
@@ -52,8 +53,6 @@ class Proxy:
         finally:
             if s:
                 s.close()
-            for t in all_threads:
-                t.join(1)
 
     def proxy_handle_client(self, nginx_socket: socket.socket, addr: tuple[str, int]) -> None:
         logger = logging.getLogger("min.waf")

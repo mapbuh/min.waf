@@ -7,8 +7,6 @@ import time
 from typing import Any
 import requests
 
-lock = threading.Lock()
-
 
 def cache_dir_path(cache_dir: str | None = None) -> str:
     """Get or create the cache directory path."""
@@ -19,26 +17,49 @@ def cache_dir_path(cache_dir: str | None = None) -> str:
     return cache_dir
 
 
-def requests_get_cached(url: str, timeout: int = 10, cache_dir: str | None = None, since: int = 3600) -> bytes:
+def requests_get_cached(
+        url: str,
+        timeout: int = 10,
+        cache_dir: str | None = None,
+        since: int = 3600,
+        strict: bool = False
+) -> bytes:
     """Fetch a URL with caching to avoid repeated requests."""
     logger = logging.getLogger("min.waf")
     if not cache_dir:
         cache_dir = cache_dir_path()
     cache_file = os.path.join(cache_dir, hashlib.md5(url.encode()).hexdigest())
     result: bytes = b""
+    if os.path.exists(cache_file):
+        with open(cache_file, 'rb') as f:
+            logger.debug(f"Using cached response for {url}")
+            result = f.read()
+    t = None
+    if not os.path.exists(cache_file) or time.time() - os.path.getmtime(cache_file) >= since:
+        t = threading.Thread(target=fetch_and_cache, args=(url, timeout, cache_file, since, logger))
+        t.start()
+    if t and (not result or strict):
+        t.join()
+        with open(cache_file, 'rb') as f:
+            logger.debug(f"Using freshly cached response for {url}")
+            result = f.read()
+    return result
+
+
+lock = threading.Lock()
+
+
+def fetch_and_cache(url: str, timeout: int, cache_file: str, since: int, logger: logging.Logger) -> None:
+    """Fetch a URL and cache the response."""
     with lock:
         if os.path.exists(cache_file) and (time.time() - os.path.getmtime(cache_file) < since):
-            with open(cache_file, 'rb') as f:
-                logger.debug(f"Using cached response for {url}")
-                result = f.read()
-        else:
-            response = requests.get(url, timeout=timeout)
-            response.raise_for_status()
-            with open(cache_file, 'wb') as f:
-                logger.debug(f"Fetching response from {url}")
-                f.write(response.content)
-                result = response.content
-    return result
+            logger.debug(f"Cache for {url} is freshened from another thread, skipping fetch")
+            return
+        response = requests.get(url, timeout=timeout)
+        response.raise_for_status()
+        with open(cache_file, 'wb') as f:
+            logger.debug(f"Fetching response from {url}")
+            f.write(response.content)
 
 
 def requests_get_cached_json(
