@@ -57,6 +57,7 @@ class Nginx:
         ip_data = rts.ip_stats.get(log_line.ip)
         if ip_data is None:
             ip_data = IpData(
+                config,
                 log_line.ip,
                 'ip',
                 {
@@ -71,6 +72,7 @@ class Nginx:
             url_data = rts.url_stats.get(log_line.path)
             if url_data is None:
                 url_data = IpData(
+                    config,
                     log_line.path,
                     'path',
                     {
@@ -85,6 +87,7 @@ class Nginx:
             ua_data = rts.ua_stats.get(log_line.ua)
             if ua_data is None:
                 ua_data = IpData(
+                    config,
                     log_line.ua,
                     'user_agent',
                     {

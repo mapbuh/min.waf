@@ -22,6 +22,10 @@ class Config:
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]
 
+    @functools.lru_cache()
+    def getlistint(self, section: str, option: str) -> list[int]:
+        return [int(s) for s in self.config.get(section, option).split("\n") if s]
+
     @property
     @functools.lru_cache()
     def harmful_patterns(self) -> list[str]:

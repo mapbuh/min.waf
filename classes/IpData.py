@@ -1,13 +1,15 @@
 from typing import Any
 from classes.ExpiringList import ExpiringList
 from classes.LogLine import LogLine
+from classes.Config import Config
 
 
 class IpData:
     _raw_lines: ExpiringList[str]
     _log_lines: ExpiringList[LogLine]
 
-    def __init__(self, key: str, key_name: str, data: dict[str, Any]):
+    def __init__(self, config: Config, key: str, key_name: str, data: dict[str, Any]):
+        self.config = config
         self.key = key
         self.key_name = key_name
         self._raw_lines = data.get("raw_lines", ExpiringList(60))
@@ -52,30 +54,22 @@ class IpData:
             return 0.0
         return self.total_time / self.request_count
 
-    all_status_scores: dict[str, float] = {}
-
     @property
     def http_status_bad(self) -> float:
-        good_statuses: list[int] = [200, 206, 499, 304]
-        # ignore_statuses: list[int] = [301, 302, 303, 304, 307, 308]
-        ignore_statuses: list[int] = [304, 301]
-
         unique_paths: set[str] = set()
         score = 0.0
         count = 0
         for line in self._log_lines.values():
-            if line.http_status in ignore_statuses:
+            if line.http_status in self.config.getlistint('main', 'http_status_ignore'):
                 continue
             if line.path in unique_paths:
                 continue
             count += 1
             unique_paths.add(line.path)
-            if line.http_status in good_statuses:
+            if line.http_status in self.config.getlistint('main', 'http_status_good'):
                 continue
             score += 1.0  # base score for bad status
-        if count > 3 and self.key_name == 'ip':
-            IpData.all_status_scores[self.key] = score
-        return score / count if count > 10 else 0
+        return score / count if count > self.config.config.getint('main', 'http_status_min_count') else 0
 
     @property
     def steal_time(self) -> float:
