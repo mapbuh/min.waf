@@ -18,7 +18,7 @@ class Checks:
         return False
 
     @staticmethod
-    def bad_steal_ratio(config: Config, log_line: LogLine, ip_data: IpData) -> bool:
+    def bad_steal_ratio(config: Config, ip_data: IpData) -> bool:
         logger = logging.getLogger("min.waf")
         if (
             ip_data.steal_time < (-config.config.getint('main', 'steal_total'))
@@ -26,7 +26,7 @@ class Checks:
             and ip_data.steal_ratio > config.config.getfloat('main', 'steal_ratio')
         ):
             logger.info(
-                f"{log_line.ip} banned; Stealing time: {ip_data.steal_time:.2f}s "
+                f"{ip_data.key} banned; Stealing time: {ip_data.steal_time:.2f}s "
                 f"t/a: {ip_data.total_time:.2f}/{ip_data.avail_time:.2f} "
                 f"req: {ip_data.request_count} ratio: {ip_data.steal_ratio:.2f}"
             )

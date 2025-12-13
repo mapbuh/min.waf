@@ -1,8 +1,7 @@
-import time
 from classes.LogLine import LogLine
 
 def test_logline_init_and_repr():
-    data = {
+    data: dict[str, str | float | int] = {
         "ip": "1.2.3.4",
         "upstream_response_time": 0.123,
         "req_ts": 1234567890,

@@ -197,7 +197,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 200,
         "ua": "Mozilla/5.0"
     })
-    monkeypatch.setattr(Checks, "bad_steal_ratio", lambda config, log_line, ip_data: True)
+    monkeypatch.setattr(Checks, "bad_steal_ratio", lambda config, ip_data: True)
     assert Nginx.process_line(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
 
     # good bot

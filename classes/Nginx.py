@@ -114,7 +114,7 @@ class Nginx:
         if Checks.bad_http_stats(config, log_line, ip_data):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
             return Nginx.STATUS_BANNED
-        if Checks.bad_steal_ratio(config, log_line, ip_data):
+        if Checks.bad_steal_ratio(config, ip_data):
             IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
             return Nginx.STATUS_BANNED
         return Nginx.STATUS_OK

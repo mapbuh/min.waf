@@ -31,7 +31,7 @@ def test_ids_add_and_repr():
     rep = repr(ids)
     assert "path: /path host: host status: 404" in rep
 
-def test_runtimestats_init_and_blacklist(monkeypatch):
+def test_runtimestats_init_and_blacklist(monkeypatch: pytest.MonkeyPatch):
     config = Config("test.conf")
     rts = RunTimeStats(config)
     assert rts.start_time == 0
