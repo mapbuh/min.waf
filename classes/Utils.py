@@ -1,11 +1,11 @@
+from typing import Any, Optional, Dict
 import hashlib
 import json
 import logging
 import os
+import requests
 import threading
 import time
-from typing import Any, Optional, Dict
-import requests
 
 
 def cache_dir_path(cache_dir: Optional[str] = None) -> str:
@@ -46,6 +46,19 @@ def requests_get_cached(
     return result
 
 
+def requests_get_cached_json(
+    url: str,
+    timeout: int = 10,
+    cache_dir: Optional[str] = None,
+    since: int = 3600,
+    strict: bool = False,
+    logger: logging.Logger = logging.getLogger("min.waf")
+) -> Dict[str, Any]:
+    """Fetch a URL with caching to avoid repeated requests."""
+    data = requests_get_cached(url, timeout, cache_dir, since, strict, logger)
+    return json.loads(data.decode(), strict=False)
+
+
 lock = threading.Lock()
 
 
@@ -57,11 +70,11 @@ def fetch_and_cache(
     logger: logging.Logger = logging.getLogger("min.waf")
 ) -> None:
     """Fetch a URL and cache the response."""
+    if os.path.exists(cache_file) and (time.time() - os.path.getmtime(cache_file) < since):
+        logger.debug(f"Cache for {url} is freshened from another thread, skipping fetch")
+        return
     with lock:
         try:
-            if os.path.exists(cache_file) and (time.time() - os.path.getmtime(cache_file) < since):
-                logger.debug(f"Cache for {url} is freshened from another thread, skipping fetch")
-                return
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
             temp_file = cache_file + ".tmp"
@@ -71,36 +84,3 @@ def fetch_and_cache(
             os.replace(temp_file, cache_file)
         except Exception as e:
             logger.error(f"Error fetching and caching {url}: {e}")
-
-
-def requests_get_cached_json(
-    url: str,
-    timeout: int = 10,
-    cache_dir: Optional[str] = None,
-    since: int = 3600,
-    logger: logging.Logger = logging.getLogger("min.waf")
-) -> Dict[str, Any]:
-    """Fetch a URL with caching to avoid repeated requests."""
-    if not cache_dir:
-        cache_dir = cache_dir_path()
-    cache_file = os.path.join(cache_dir, hashlib.md5(url.encode()).hexdigest())
-    result: Dict[str, Any] = {}
-    if os.path.exists(cache_file) and (time.time() - os.path.getmtime(cache_file) < since):
-        try:
-            with open(cache_file, 'rb') as f:
-                logger.debug(f"Using cached response for {url}")
-                return json.load(f)
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error for cache file {cache_file}: {e}. Returning empty dictionary...")
-            os.remove(cache_file)
-            return {}
-    with lock:
-        response = requests.get(url, timeout=timeout)
-        response.raise_for_status()
-        temp_file = cache_file + ".tmp"
-        with open(temp_file, 'wb') as f:
-            logger.debug(f"Fetching response from {url}")
-            f.write(response.content)
-        os.replace(temp_file, cache_file)
-        result = response.json()
-    return result
