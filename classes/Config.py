@@ -95,7 +95,7 @@ class Config:
                                 whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
                                 logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
-                    logger.info(f"Loaded {len(prefixes)} IP ranges for bot {section}")
+                    logger.debug(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
         return whitelist_bots
