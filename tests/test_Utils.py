@@ -79,13 +79,17 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch):
     end_time = time.time()
     assert end_time - start_time < 5  # All threads should complete quickly due to caching
 
+    def get_and_assert():
+        res = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, since=0, strict=True)
+        assert res == json_data
+
     threads: list[threading.Thread] = []
     start_time = time.time()
     for _ in range(10):
         t = threading.Thread(
-            target=Utils.requests_get_cached_json,
-            args=(url,),
-            kwargs={"cache_dir": temp_cache_dir, "since": 0, "strict": True}
+            target=get_and_assert,
+            args=(),
+            kwargs={}
         )
         t.start()
         threads.append(t)
