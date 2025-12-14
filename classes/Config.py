@@ -79,7 +79,7 @@ class Config:
                         self.config.get(section, 'ip_ranges_url'),
                         timeout=10,
                         since=86400 + random.randint(0, 60),
-                        strict=True
+                        strict=False
                     )
                     prefixes = data.get('prefixes', [])
                     for prefix in prefixes:
