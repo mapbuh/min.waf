@@ -61,6 +61,13 @@ class Config:
         return [t for t in self.whitelist_triggers() if t['host'] == host]
 
     @functools.lru_cache()
+    def host_has_trigger(self, host: str) -> bool:
+        for t in self.whitelist_triggers():
+            if t['host'] == host:
+                return True
+        return False
+
+    @functools.lru_cache()
     def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
         logger = logging.getLogger("min.waf")
         bot_sections: list[str] = []
