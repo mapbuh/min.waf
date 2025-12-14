@@ -10,12 +10,19 @@ from classes.Config import Config
 from classes.IpTables import IpTables
 from classes.LogLine import LogLine
 from classes.Nginx import Nginx
-from classes.PrintStats import PrintStats
 from classes.RunTimeStats import RunTimeStats
 
 
 class Proxy:
-    def __init__(self, config: Config, rts: RunTimeStats) -> None:
+    from typing import Callable
+
+    def __init__(
+        self,
+        config: Config,
+        rts: RunTimeStats,
+        cb_10_seconds: Callable[[], None],
+        cb_1_hour: Callable[[], None]
+    ) -> None:
         self.config = config
         self.rts = rts
 
@@ -42,11 +49,10 @@ class Proxy:
                         all_threads.remove(t)
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
-                    IpTables.unban_expired(self.config, self.rts)
-                    self.rts.ip_blacklist.load()
+                    cb_10_seconds()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
-                    PrintStats.log_stats(self.rts)
+                    cb_1_hour()
 
         except KeyboardInterrupt:
             pass
@@ -243,11 +249,11 @@ class Proxy:
             if request_clean_upto >= self.config.config.getint("main", "max_inspect_size"):
                 return True
             # Inspect only the new data since last clean point
-            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
+            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern() + 1
             if dirty_data_from < 0:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
-            for signature in self.config.harmful_patterns:
+            for signature in self.config.harmful_patterns():
                 if signature.encode().lower() in dirty_data.lower():
                     logger.debug(f"Harmful signature detected: {signature}")
                     logger.debug(f"Dirty data: {request_whole}")
@@ -259,7 +265,7 @@ class Proxy:
     def is_safe_header(self, path: str) -> bool:
         logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
-            for signature in self.config.harmful_patterns:
+            for signature in self.config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(path).lower():
                     logger.debug(f"Harmful signature detected in header: {signature}")
                     logger.debug(f"Dirty data: {path}")

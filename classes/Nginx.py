@@ -50,7 +50,15 @@ class Nginx:
             if config.config.getboolean('log', 'bots'):
                 logger.info(f"{log_line.ip} banned; Bad bot detected: {log_line.ua}")
             return Nginx.STATUS_BANNED
-        if rts.ip_whitelist.is_trigger(log_line.host, log_line.ip, log_line.path, log_line.http_status):
+        if (
+            config.host_has_trigger(log_line.host)
+            and rts.ip_whitelist.is_trigger(
+                log_line.host,
+                log_line.ip,
+                log_line.path,
+                log_line.http_status
+            )
+        ):
             return Nginx.STATUS_OK
         if log_line.path.endswith(tuple(config.getlist('main', 'static_files'))):
             return Nginx.STATUS_OK

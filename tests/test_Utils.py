@@ -49,6 +49,8 @@ def test_requests_get_cached_fetch_and_cache(monkeypatch: pytest.MonkeyPatch):
     # Should use cache now
     result2 = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, since=3600)
     assert result2 == data
+    if os.path.exists(cache_file):
+        os.remove(cache_file)
 
 
 def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch):

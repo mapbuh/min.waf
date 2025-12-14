@@ -87,4 +87,4 @@ class TestMinProxy:
         monkeypatch.setattr(socket, "socket", lambda *a: mock_socket)
         mock_socket.accept.side_effect = KeyboardInterrupt  # Stop after one loop
         # Should not raise
-        Proxy(config, rts)
+        Proxy(config, rts, lambda: None, lambda: None)

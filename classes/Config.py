@@ -26,7 +26,6 @@ class Config:
     def getlistint(self, section: str, option: str) -> list[int]:
         return [int(s) for s in self.config.get(section, option).split("\n") if s]
 
-    @property
     @functools.lru_cache()
     def harmful_patterns(self) -> list[str]:
         sql_injections = self.getlist('signatures', 'sql_injections')
@@ -34,16 +33,14 @@ class Config:
         node_injections = self.getlist('signatures', 'node_injections')
         return sql_injections + php_injections + node_injections
 
-    @property
     @functools.lru_cache()
     def longest_harmful_pattern(self) -> int:
         longest = 0
-        for pattern in self.harmful_patterns:
+        for pattern in self.harmful_patterns():
             if len(pattern) > longest:
                 longest = len(pattern)
         return longest
 
-    @property
     @functools.lru_cache()
     def whitelist_triggers(self) -> list[dict[str, str | int]]:
         triggers: list[dict[str, str | int]] = []
@@ -61,9 +58,15 @@ class Config:
 
     @functools.lru_cache()
     def whitelist_host_triggers(self, host: str) -> list[dict[str, str | int]]:
-        return [t for t in self.whitelist_triggers if t['host'] == host]
+        return [t for t in self.whitelist_triggers() if t['host'] == host]
 
-    @property
+    @functools.lru_cache()
+    def host_has_trigger(self, host: str) -> bool:
+        for t in self.whitelist_triggers():
+            if t['host'] == host:
+                return True
+        return False
+
     @functools.lru_cache()
     def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
         logger = logging.getLogger("min.waf")
@@ -72,7 +75,7 @@ class Config:
             if section.startswith('bots.'):
                 bot_sections.append(section)
 
-        whitelist_bots: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        whitelist_bots_list: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
         for section in bot_sections:
             if (
                 self.config.get(section, 'action') == 'allow'
@@ -82,7 +85,8 @@ class Config:
                     data = Utils.requests_get_cached_json(
                         self.config.get(section, 'ip_ranges_url'),
                         timeout=10,
-                        since=86400 + random.randint(0, 60)
+                        since=86400 + random.randint(0, 60),
+                        strict=False
                     )
                     prefixes = data.get('prefixes', [])
                     for prefix in prefixes:
@@ -90,12 +94,12 @@ class Config:
                         if ip_prefix:
                             try:
                                 user_agent = self.config.get(section, 'user_agent')
-                                if user_agent not in whitelist_bots:
-                                    whitelist_bots[user_agent] = []
-                                whitelist_bots[user_agent].append(ipaddress.ip_network(ip_prefix))
+                                if user_agent not in whitelist_bots_list:
+                                    whitelist_bots_list[user_agent] = []
+                                whitelist_bots_list[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
                                 logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
                     logger.debug(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
-        return whitelist_bots
+        return whitelist_bots_list
