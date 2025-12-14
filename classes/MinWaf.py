@@ -6,6 +6,7 @@ import sys
 import time
 # import yappi
 
+from classes.Bots import Bots
 from classes.Proxy import Proxy
 from classes.Config import Config
 from classes.IpTables import IpTables
@@ -32,7 +33,49 @@ class MinWaf:
         logger.info(
             f"min.waf started on {self.config.config.get('main', 'host')}:{self.config.config.get('main', 'port')}"
         )
-        self.proxy: Proxy = Proxy(self.config, self.rts)
+        self.proxy: Proxy = Proxy(self.config, self.rts, self.every_10_seconds, self.every_1_hour)
+
+    def every_10_seconds(self) -> None:
+        IpTables.unban_expired(self.config, self.rts)
+        self.rts.ip_blacklist.load()
+
+    def every_1_hour(self) -> None:
+        PrintStats.log_stats(self.rts)
+        self.print_memory_usage()
+        self.print_cache_stats()
+
+    def print_cache_stats(self) -> None:
+        logger = logging.getLogger("min.waf")
+        try:
+            info: dict[str, object] = {
+                "bots_good_bot": Bots.good_bot.cache_info(),
+                "bots_bad_bot": Bots.bad_bot.cache_info(),
+                "config_getlistint": self.config.getlistint.cache_info(),
+                "config_harmful_patterns": self.config.harmful_patterns.cache_info(),
+                "config_longest_harmful_pattern": self.config.longest_harmful_pattern.cache_info(),
+                "config_whitelist_triggers": self.config.whitelist_triggers.cache_info(),
+                "config_whitelist_host_triggers": self.config.whitelist_host_triggers.cache_info(),
+                "config_whitelist_bots": self.config.whitelist_bots.cache_info(),
+                "ip_blacklist_is_ip_blacklisted": self.rts.ip_blacklist.is_ip_blacklisted.cache_info(),
+                "ip_whitelist_is_whitelisted": self.rts.ip_whitelist.is_whitelisted.cache_info(),
+                "ip_whitelist_is_trigger": self.rts.ip_whitelist.is_trigger.cache_info(),
+            }
+            for key, value in info.items():
+                logger.info(f"{key} Cache - Hits: {value.hits}, Misses: {value.misses}, "
+                            f"Current Size: {value.currsize}, Max Size: {value.maxsize}")
+        except Exception as e:
+            logger.warning(f"Could not retrieve cache stats: {e}")
+
+    def print_memory_usage(self) -> None:
+        logger = logging.getLogger("min.waf")
+        try:
+            with open("/proc/self/status", "r") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        logger.info(f"Current memory usage: {line.strip()}")
+                        break
+        except FileNotFoundError:
+            logger.warning("Could not read /proc/self/status to get memory usage.")
 
     def signal_handler(self, signum: int, frame: object) -> None:
         logger = logging.getLogger("min.waf")
@@ -42,7 +85,7 @@ class MinWaf:
             sys.exit(0)
         elif signum == signal.SIGUSR1:
             logger.info(f"Received signal {signum}, dumping stats...")
-            self.logstats_cb()
+            self.every_1_hour()
         elif signum == signal.SIGHUP:
             logger.info(f"Received signal {signum}, reloading config...")
             self.config.load()
@@ -84,7 +127,3 @@ class MinWaf:
             self.lockfile_remove()
         with open(self.config.config.get("main", "lockfile"), "w") as f:
             f.write(str(os.getpid()))
-
-    def logstats_cb(self) -> None:
-        # Periodically log runtime statistics for monitoring and analysis
-        PrintStats.log_stats(self.rts)

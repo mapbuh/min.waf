@@ -10,12 +10,19 @@ from classes.Config import Config
 from classes.IpTables import IpTables
 from classes.LogLine import LogLine
 from classes.Nginx import Nginx
-from classes.PrintStats import PrintStats
 from classes.RunTimeStats import RunTimeStats
 
 
 class Proxy:
-    def __init__(self, config: Config, rts: RunTimeStats) -> None:
+    from typing import Callable
+
+    def __init__(
+        self,
+        config: Config,
+        rts: RunTimeStats,
+        cb_10_seconds: Callable[[], None],
+        cb_1_hour: Callable[[], None]
+    ) -> None:
         self.config = config
         self.rts = rts
 
@@ -42,11 +49,10 @@ class Proxy:
                         all_threads.remove(t)
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
-                    IpTables.unban_expired(self.config, self.rts)
-                    self.rts.ip_blacklist.load()
+                    cb_10_seconds()
                 if (time.time() - logstats_ts) > 3600:
                     logstats_ts = time.time()
-                    PrintStats.log_stats(self.rts)
+                    cb_1_hour()
 
         except KeyboardInterrupt:
             pass
