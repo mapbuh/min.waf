@@ -46,7 +46,6 @@ class DummyConfig2(Config):
     def __init__(self):
         super().__init__("test.conf")
 
-    @property
     @functools.lru_cache()
     def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
         return {

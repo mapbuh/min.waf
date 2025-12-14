@@ -249,11 +249,11 @@ class Proxy:
             if request_clean_upto >= self.config.config.getint("main", "max_inspect_size"):
                 return True
             # Inspect only the new data since last clean point
-            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern + 1
+            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern() + 1
             if dirty_data_from < 0:
                 dirty_data_from = 0
             dirty_data = request_whole[dirty_data_from:]
-            for signature in self.config.harmful_patterns:
+            for signature in self.config.harmful_patterns():
                 if signature.encode().lower() in dirty_data.lower():
                     logger.debug(f"Harmful signature detected: {signature}")
                     logger.debug(f"Dirty data: {request_whole}")
@@ -265,7 +265,7 @@ class Proxy:
     def is_safe_header(self, path: str) -> bool:
         logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("main", "inspect_packets"):
-            for signature in self.config.harmful_patterns:
+            for signature in self.config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(path).lower():
                     logger.debug(f"Harmful signature detected in header: {signature}")
                     logger.debug(f"Dirty data: {path}")
