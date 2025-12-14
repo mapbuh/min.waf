@@ -10,7 +10,7 @@ class PrintStats:
         logger = logging.getLogger("min.waf")
         logger.info(
             f"Running for {(time.time() - rts.start_time)/3600:.2f}h, "
-            f"Total bans: {rts.bans}, "
+            f"Total bans: {rts.bans}, {rts.bans/((time.time() - rts.start_time)/3600):.2f} bans/h, "
             f"Whitelisted IPs: {', '.join(host + '/' + ip for host, ips in rts.ip_whitelist.whitelist.items() for ip in ips.values())}"
         )
         counter = 10
