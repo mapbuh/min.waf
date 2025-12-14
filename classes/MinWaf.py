@@ -62,8 +62,12 @@ class MinWaf:
                 "ip_whitelist_is_trigger": self.rts.ip_whitelist.is_trigger.cache_info(),
             }
             for key, value in info.items():
-                logger.info(f"{key} Cache - Hits: {value.hits}, Misses: {value.misses}, "
-                            f"Current Size: {value.currsize}, Max Size: {value.maxsize}")
+                logger.info(
+                    f"{key} Cache - Hits: {value.hits}, Misses: {value.misses}, "
+                    f"Current Size: {value.currsize}, Max Size: {value.maxsize}, "
+                    f"Hit Rate: "
+                    f"{value.hits / (value.hits + value.misses) if (value.hits + value.misses) > 0 else 0:.2%}"
+                )
         except Exception as e:
             logger.warning(f"Could not retrieve cache stats: {e}")
 
