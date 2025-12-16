@@ -128,7 +128,7 @@ class Proxy:
                 request_whole,
                 request_clean_upto,
             ):
-                upstream_socket.send(data)
+                upstream_socket.send(buffer)
             else:
                 IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                 logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
