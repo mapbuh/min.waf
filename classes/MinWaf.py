@@ -63,7 +63,7 @@ class MinWaf:
                 "ip_whitelist_is_whitelisted": self.rts.ip_whitelist.is_whitelisted.cache_info(),
             }
             for key, value in info.items():
-                logger.info(
+                logger.debug(
                     f"{key} Cache - Hits: {value.hits}, Misses: {value.misses}, "
                     f"Current Size: {value.currsize}, Max Size: {value.maxsize}, "
                     f"Hit Rate: "
