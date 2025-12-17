@@ -128,7 +128,7 @@ class Proxy:
                 request_whole,
                 request_clean_upto,
             ):
-                upstream_socket.send(buffer)
+                upstream_socket.sendall(buffer)
             else:
                 IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                 logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
@@ -168,12 +168,20 @@ class Proxy:
             return
         header_end = False
         http_status: str = '200'
+        p = select.epoll()
+        p.register(nginx_socket, select.POLLIN)
+        p.register(upstream_socket, select.POLLIN)
         while True:
             if nginx_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                 break
-            socket_list = [nginx_socket, upstream_socket]
-            read_sockets, _, _ = select.select(socket_list, [], [])
-            for sock in read_sockets:
+            events = p.poll()  # Returns list of (fd, event_type) tuples
+            for fd, _ in events:
+                if fd == nginx_socket.fileno():
+                    sock = nginx_socket
+                elif fd == upstream_socket.fileno():
+                    sock = upstream_socket
+                else:
+                    continue
                 try:
                     data = sock.recv(buff_size)
                     if self.config.config.getboolean("main", "inspect_packets"):
@@ -192,7 +200,7 @@ class Proxy:
                                 request_whole,
                                 request_clean_upto,
                             ):
-                                upstream_socket.send(data)
+                                upstream_socket.sendall(data)
                             else:
                                 IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
                                 logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
@@ -217,14 +225,14 @@ class Proxy:
                                     time.sleep(3)
                                     # and confuse them, in case it hasn't propagated yet
                                     try:
-                                        nginx_socket.send(b"HTTP/1.1 200 OK\r\n\r\n")
+                                        nginx_socket.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
                                     except (BrokenPipeError, OSError):
                                         pass
                                     nginx_socket.close()
                                     upstream_socket.close()
                                     return
                             try:
-                                nginx_socket.send(data)
+                                nginx_socket.sendall(data)
                             except (BrokenPipeError, OSError):
                                 nginx_socket.close()
                                 upstream_socket.close()
