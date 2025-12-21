@@ -31,8 +31,6 @@ class IpBlacklist:
     @lru_cache(maxsize=1024)
     def is_ip_blacklisted(self, ip: str) -> bool:
         logger = logging.getLogger("min.waf")
-        if time.time() > self.list_valid_until:
-            self.load()
         if ip in self.list:
             if self.config.config.getboolean('log', 'blacklist'):
                 logger.debug(f"{ip} banned; found in blacklist")
