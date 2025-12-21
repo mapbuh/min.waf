@@ -50,7 +50,6 @@ class MinWaf:
         logger = logging.getLogger("min.waf")
         try:
             info: dict[str, functools._CacheInfo] = {  # pyright: ignore[reportPrivateUsage]
-                "bot_whitelist_check": self.config.bot_whitelist.check.cache_info(),
                 "bots_bad_bot": Bots.bad_bot.cache_info(),
                 "bots_good_bot": Bots.good_bot.cache_info(),
                 "config_getlistint": self.config.getlistint.cache_info(),
