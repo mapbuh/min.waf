@@ -34,16 +34,6 @@ class IpWhitelist:
                     return True
         except ValueError as err:
             logger.warning(f"Whitelist checking {ip} {err=}")
-        for bot, networks in self.config.whitelist_bots().items():
-            if bot.lower() in user_agent.lower():
-                for net in networks:
-                    if ipaddress.ip_address(ip) in net:
-                        if (
-                            self.config.config.getboolean('log', 'whitelist')
-                            and self.config.config.getboolean('log', 'bots')
-                        ):
-                            logger.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
-                        return True
         return False
 
     @lru_cache(maxsize=1024)

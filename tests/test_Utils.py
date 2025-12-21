@@ -44,10 +44,10 @@ def test_requests_get_cached_fetch_and_cache(monkeypatch: pytest.MonkeyPatch):
     cache_file = os.path.join(temp_cache_dir, Utils.hashlib.md5(url.encode()).hexdigest())
     if os.path.exists(cache_file):
         os.remove(cache_file)
-    result = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, since=0, strict=True)
+    result = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, ttl=0, strict=True)
     assert result == data
     # Should use cache now
-    result2 = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, since=3600)
+    result2 = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, ttl=3600)
     assert result2 == data
     if os.path.exists(cache_file):
         os.remove(cache_file)
@@ -63,7 +63,7 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch):
         time.sleep(1)
         return DummyResponse(json.dumps(json_data).encode())
     monkeypatch.setattr(Utils.requests, "get", fake_get)
-    result = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, since=0, strict=False)
+    result = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, ttl=0, strict=False)
     assert result == json_data
 
     threads: list[threading.Thread] = []
@@ -72,7 +72,7 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch):
         t = threading.Thread(
             target=Utils.requests_get_cached_json,
             args=(url,),
-            kwargs={"cache_dir": temp_cache_dir, "since": 0, "strict": False}
+            kwargs={"cache_dir": temp_cache_dir, "ttl": 0, "strict": False}
         )
         t.start()
         threads.append(t)
@@ -82,10 +82,14 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch):
     assert end_time - start_time < 5  # All threads should complete quickly due to caching
 
     def get_and_assert():
-        res = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, since=0, strict=True)
+        res = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, ttl=0, strict=True)
         assert res == json_data
 
     threads: list[threading.Thread] = []
+    # delete cache to force refetch
+    cache_file = os.path.join(temp_cache_dir, Utils.hashlib.md5(url.encode()).hexdigest())
+    if os.path.exists(cache_file):
+        os.remove(cache_file)
     start_time = time.time()
     for _ in range(10):
         t = threading.Thread(
@@ -110,6 +114,6 @@ def test_fetch_and_cache(monkeypatch: pytest.MonkeyPatch):
         return DummyResponse(data)
     monkeypatch.setattr(Utils.requests, "get", fake_get)
     cache_file = os.path.join(temp_cache_dir, Utils.hashlib.md5(url.encode()).hexdigest())
-    Utils.fetch_and_cache(url, 10, cache_file, 0)
+    Utils.fetch_and_cache(url, 10, cache_file)
     with open(cache_file, 'rb') as f:
         assert f.read() == data

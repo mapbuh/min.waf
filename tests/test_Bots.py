@@ -1,12 +1,13 @@
 import functools
 import ipaddress
 import pytest
-from classes.IpTables import IpTables
+
 from classes.Bots import Bots
 from classes.Config import Config
+from classes.IpTables import IpTables
 from classes.LogLine import LogLine
-from classes.RunTimeStats import RunTimeStats
 from classes.Nginx import Nginx
+from classes.RunTimeStats import RunTimeStats
 
 
 class DummyConfig(Config):
@@ -42,30 +43,18 @@ def test_bad_bot_not_detected():
     assert Bots.bad_bot(config, "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)") is False
 
 
-class DummyConfig2(Config):
-    def __init__(self):
-        super().__init__("test.conf")
-
-    @functools.lru_cache()
-    def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
-        return {
-            "GoogleBot": [ipaddress.ip_network("8.8.8.0/24"), ipaddress.ip_network("7.7.7.0/24")],
-            "Bingbot": [ipaddress.ip_network("52.167.144.0/24")]
-        }
-
-
 def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
     def dummy_ban(self: IpTables, ip_address: str, rts: RunTimeStats, config: Config):
         return None
     monkeypatch.setattr(IpTables, "ban", dummy_ban)
-    config = DummyConfig2()
+    config = Config("test.conf")
     rts = RunTimeStats(config)
     rts.ip_blacklist.list = ["8.8.8.8", "9.9.9.9", "52.167.144.177"]
     assert rts.ip_blacklist.is_ip_blacklisted("8.8.8.8")
-    assert rts.ip_whitelist.is_whitelisted("example.com", "8.8.8.8", "GoogleBot")
-    # in bots AND in blacklist
+    assert config.bot_whitelist.check("Google", "66.249.79.1")
+    # in bot_whitelist AND in ip_blacklist
     log_line = LogLine(
-        data={"ip": "8.8.8.8", "host": "example.com", "ua": "GoogleBot", "path": "/index.html", "http_status": 200}
+        data={"ip": "66.249.79.1", "host": "example.com", "ua": "GoogleBot", "path": "/index.html", "http_status": 200}
     )
     assert Nginx.process_line(config, rts, log_line, "") == Nginx.STATUS_OK
 

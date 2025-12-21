@@ -27,7 +27,12 @@ class Nginx:
         return path
 
     @staticmethod
-    def process_line(config: Config, rts: RunTimeStats, log_line: LogLine, line: str) -> str:
+    def process_line(
+        config: Config,
+        rts: RunTimeStats,
+        log_line: LogLine,
+        line: str,
+    ) -> str:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
@@ -37,6 +42,13 @@ class Nginx:
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
+            return Nginx.STATUS_OK
+        if config.bot_whitelist.check(log_line.ua, log_line.ip):
+            if (
+                config.config.getboolean('log', 'whitelist')
+                and config.config.getboolean('log', 'bots')
+            ):
+                logger.debug(f"{log_line.ip} {log_line.ua} bot whitelist match found")
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
             if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):

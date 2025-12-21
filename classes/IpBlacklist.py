@@ -22,7 +22,7 @@ class IpBlacklist:
         blacklist = Utils.requests_get_cached(
             self.config.config.get('main', 'ip_blacklist'),
             timeout=10,
-            since=self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
+            ttl=self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
         )
         self.list: list[str] = blacklist.decode().splitlines()
         self.list_valid_until = time.time() + random.randint(0, 60) + \

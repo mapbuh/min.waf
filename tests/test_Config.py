@@ -1,8 +1,9 @@
 import pytest
-from classes.Config import Config
 import pathlib
 import os
 import glob
+
+from classes.Config import Config, BotWhitelist
 
 
 def test_config_init_defaults(tmp_path: pathlib.Path):
@@ -24,6 +25,7 @@ def test_whitelist_bot_load(monkeypatch: pytest.MonkeyPatch):
         except OSError:
             pass
     config = Config("test.conf")
-    assert 'Google' in config.whitelist_bots()
-    assert isinstance(config.whitelist_bots()['Google'], list)
-    assert len(config.whitelist_bots()['Google']) > 10
+    bot_whitelist = BotWhitelist(config)
+    assert 'Google' in bot_whitelist.whitelist
+    assert isinstance(bot_whitelist.whitelist['Google'], list)
+    assert len(bot_whitelist.whitelist['Google']) > 10

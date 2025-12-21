@@ -26,7 +26,7 @@ def test_is_whitelisted(monkeypatch: pytest.MonkeyPatch):
     assert ipw.is_whitelisted("host", "192.168.0.1", "Mozilla 5.0")
     assert ipw.is_whitelisted("host", "192.168.0.3", "Mozilla 5.0")
     assert not ipw.is_whitelisted("host", "1.2.3.4", "Google")
-    assert ipw.is_whitelisted("host", "66.249.68.1", "Google")
+    assert config.bot_whitelist.check("GoogleBot", "66.249.68.1")
 
 
 def test_is_trigger(monkeypatch: pytest.MonkeyPatch):

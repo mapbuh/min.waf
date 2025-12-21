@@ -1,12 +1,13 @@
 import time
 import pytest
+
 from classes.Checks import Checks
+from classes.Config import Config
+from classes.IpBlacklist import IpBlacklist
 from classes.IpTables import IpTables
 from classes.LogLine import LogLine
 from classes.Nginx import Nginx
-from classes.Config import Config
 from classes.RunTimeStats import RunTimeStats
-from classes.IpBlacklist import IpBlacklist
 
 
 def test_parse_path():
@@ -60,7 +61,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404
     })
     assert Nginx.process_line(config, rts, log_line, "raw log line") == Nginx.STATUS_OK
-    
+
     log_line = DummyLogLine({
         "ip": "66.249.68.1",  # real google ip
         "host": "example.com",

