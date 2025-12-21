@@ -44,6 +44,11 @@ class Nginx:
         if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
             return Nginx.STATUS_OK
         if config.bot_whitelist.check(log_line.ua, log_line.ip):
+            if (
+                config.config.getboolean('log', 'whitelist')
+                and config.config.getboolean('log', 'bots')
+            ):
+                logger.debug(f"{log_line.ip} {log_line.ua} bot whitelist match found")
             return Nginx.STATUS_OK
         if Bots.good_bot(config, log_line.ua):
             if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
