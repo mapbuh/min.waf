@@ -9,10 +9,12 @@ from classes import Utils
 
 
 class Config:
+    bot_whitelist: 'BotWhitelist'
+
     def __init__(self, filename: str) -> None:
         self.filename: str = filename
         self.load()
-        self.bot_whitelist: BotWhitelist = BotWhitelist(self)
+        self.bot_whitelist = BotWhitelist(self)
 
     def load(self) -> None:
         minwaf_path: str = os.path.dirname(os.path.realpath(__file__)) + "/.."
@@ -113,9 +115,15 @@ class BotWhitelist:
 
     @functools.lru_cache(maxsize=1024)
     def check(self, user_agent: str, ip: str) -> bool:
+        logger: logging.Logger = logging.getLogger("min.waf")
         for bot, networks in self.whitelist.items():
             if bot.lower() in user_agent.lower():
                 for net in networks:
                     if ipaddress.ip_address(ip) in net:
+                        if (
+                            self.config.config.getboolean('log', 'whitelist')
+                            and self.config.config.getboolean('log', 'bots')
+                        ):
+                            logger.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
                         return True
         return False
