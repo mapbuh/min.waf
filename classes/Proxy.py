@@ -149,7 +149,7 @@ class Proxy:
                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                 log_line = LogLine(log_line_data)
                 log_line_data['logged'] = True
-                Nginx.process_line(self.config, self.rts, log_line, "")
+                Nginx.process_http_request(self.config, self.rts, log_line)
                 nginx_socket.close()
                 upstream_socket.close()
                 return
@@ -163,7 +163,7 @@ class Proxy:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
             log_line_data['logged'] = True
-            Nginx.process_line(self.config, self.rts, log_line, "")
+            Nginx.process_http_request(self.config, self.rts, log_line)
             nginx_socket.close()
             return
         header_end = False
@@ -220,14 +220,7 @@ class Proxy:
                                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                                 log_line = LogLine(log_line_data)
                                 log_line_data['logged'] = True
-                                if (Nginx.process_line(self.config, self.rts, log_line, "") == Nginx.STATUS_BANNED):
-                                    # just enough for iptables to register the ban and annoy the attacker a bit
-                                    time.sleep(3)
-                                    # and confuse them, in case it hasn't propagated yet
-                                    try:
-                                        nginx_socket.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
-                                    except (BrokenPipeError, OSError):
-                                        pass
+                                if (Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BANNED):
                                     nginx_socket.close()
                                     upstream_socket.close()
                                     return
@@ -244,7 +237,7 @@ class Proxy:
         if not log_line_data['logged']:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
-            Nginx.process_line(self.config, self.rts, log_line, "")
+            Nginx.process_http_request(self.config, self.rts, log_line)
         return
 
     def is_safe(

@@ -34,7 +34,7 @@ class Checks:
         return False
 
     @staticmethod
-    def log_probes(log_line: LogLine, raw_line: str, rts: RunTimeStats) -> None:
+    def log_probes(log_line: LogLine, rts: RunTimeStats) -> None:
         # TODO - make it LRU cache
         if log_line.http_status != 200:
-            rts.inter_domain.add(log_line.path, log_line.host, log_line.http_status, raw_line)
+            rts.inter_domain.add(log_line.path, log_line.host, log_line.http_status)

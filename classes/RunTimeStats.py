@@ -52,14 +52,13 @@ class IDS:
                         res += f"path: {path} host: {host} status: {status}\n    line: {line}\n"
         return res
 
-    def add(self, path: str, host: str, http_status: int, raw_line: str) -> None:
+    def add(self, path: str, host: str, http_status: int) -> None:
         if path not in self.path:
             self.path[path] = IDSPath()
         if host not in self.path[path].hosts:
             self.path[path].hosts[host] = IDSHost()
         if http_status not in self.path[path].hosts[host].http_statuses:
             self.path[path].hosts[host].http_statuses[http_status] = []
-        self.path[path].hosts[host].http_statuses[http_status].append(raw_line)
 
 
 class RunTimeStats:

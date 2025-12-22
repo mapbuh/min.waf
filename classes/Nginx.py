@@ -1,4 +1,5 @@
 import logging
+import time
 
 from classes.Bots import Bots
 from classes.Checks import Checks
@@ -27,11 +28,10 @@ class Nginx:
         return path
 
     @staticmethod
-    def process_line(
+    def process_http_request(
         config: Config,
         rts: RunTimeStats,
         log_line: LogLine,
-        line: str,
     ) -> str:
         ua_data: IpData | None = None
         url_data: IpData | None = None
@@ -55,10 +55,10 @@ class Nginx:
                 logger.debug(f"{log_line.ip} good bot: {log_line.ua}")
             return Nginx.STATUS_OK
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
-            IpTables.ban(log_line.ip, rts, config, None)
+            Nginx.ban(log_line.ip, rts, config)
             return Nginx.STATUS_BANNED
         if Bots.bad_bot(config, log_line.ua):
-            IpTables.ban(log_line.ip, rts, config)
+            Nginx.ban(log_line.ip, rts, config)
             if config.config.getboolean('log', 'bots'):
                 logger.info(f"{log_line.ip} banned; Bad bot detected: {log_line.ua}")
             return Nginx.STATUS_BANNED
@@ -85,7 +85,6 @@ class Nginx:
                     "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                 }
             )
-        ip_data.raw_lines.append(log_line.req_ts, line)
         ip_data.log_lines.append(log_line.req_ts, log_line)
 
         if config.config.getboolean('main', 'url_stats'):
@@ -100,7 +99,6 @@ class Nginx:
                         "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                     }
                 )
-            url_data.raw_lines.append(log_line.req_ts, line)
             url_data.log_lines.append(log_line.req_ts, log_line)
 
         if config.config.getboolean('main', 'ua_stats'):
@@ -115,13 +113,12 @@ class Nginx:
                         "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                     }
                 )
-            ua_data.raw_lines.append(log_line.req_ts, line)
             ua_data.log_lines.append(log_line.req_ts, log_line)
 
         if KnownAttacks.is_known(config, log_line):
-            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+            Nginx.ban(log_line.ip, rts, config)
             return Nginx.STATUS_BANNED
-        Checks.log_probes(log_line, line, rts)
+        Checks.log_probes(log_line, rts)
 
         rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
         if config.config.getboolean('main', 'url_stats') and url_data is not None:
@@ -132,9 +129,23 @@ class Nginx:
                                 key=log_line.ua, value=ua_data)
 
         if Checks.bad_http_stats(config, log_line, ip_data):
-            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+            Nginx.ban(log_line.ip, rts, config)
             return Nginx.STATUS_BANNED
         if Checks.bad_steal_ratio(config, ip_data):
-            IpTables.ban(log_line.ip, rts, config, ip_data.raw_lines)
+            Nginx.ban(log_line.ip, rts, config)
             return Nginx.STATUS_BANNED
         return Nginx.STATUS_OK
+
+    @staticmethod
+    def ban(
+        ip: str,
+        rts: RunTimeStats,
+        config: Config
+    ) -> None:
+        logger = logging.getLogger("min.waf")
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.ban(ip, rts, config)
+            logger.info(f"{ip} banned via iptables")
+        else:
+            rts.banned_ips[ip] = time.time()
+            logger.info(f"{ip} banned via block method")
