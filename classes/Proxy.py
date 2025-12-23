@@ -286,12 +286,11 @@ class Proxy:
         config: Config
     ) -> None:
         logger = logging.getLogger("min.waf")
+        logger.info(f"{ip} banned")
         if config.config.get('main', 'ban_method') == 'iptables':
             IpTables.ban(ip, rts, config)
-            logger.info(f"{ip} banned via iptables")
         else:
             rts.banned_ips[ip] = time.time()
-            logger.info(f"{ip} banned via block method")
 
     def log(self, log_line: LogLine, request_whole: bytes) -> None:
         if not (
