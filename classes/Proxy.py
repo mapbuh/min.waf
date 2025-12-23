@@ -312,12 +312,12 @@ class Proxy:
 
     def log(self, log_line: LogLine, request_whole: bytes) -> None:
         if not (
-            self.config.config.getboolean("log", "ban_headers") or
+            self.config.config.getboolean("log", "ban_url") or
             self.config.config.getboolean("log", "ban_content")
         ):
             return
         logger = logging.getLogger("min.waf")
-        if self.config.config.getboolean("log", "ban_headers"):
+        if self.config.config.getboolean("log", "ban_url"):
             logger.info(f"{log_line.ip},{log_line.req}")
         if self.config.config.getboolean("log", "ban_content"):
             logger.info(f"{request_whole.decode(errors='ignore')}")
