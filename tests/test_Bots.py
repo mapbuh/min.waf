@@ -1,5 +1,3 @@
-import functools
-import ipaddress
 import pytest
 
 from classes.Bots import Bots
@@ -56,19 +54,19 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
     log_line = LogLine(
         data={"ip": "66.249.79.1", "host": "example.com", "ua": "GoogleBot", "path": "/index.html", "http_status": 200}
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_OK
+    assert Nginx.process_http_request(config, rts, log_line) == Nginx.STATUS_OK
 
     # only in bots
     log_line = LogLine(
         data={"ip": "7.7.7.7", "host": "example.com", "ua": "GoogleBot", "path": "/index.html", "http_status": 200}
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_OK
+    assert Nginx.process_http_request(config, rts, log_line) == Nginx.STATUS_OK
 
     # only in blacklist
     log_line = LogLine(
         data={"ip": "9.9.9.9", "host": "example.com", "ua": "SomeOtherBot", "path": "/index.html", "http_status": 200}
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_BAN
+    assert Nginx.process_http_request(config, rts, log_line) == Nginx.STATUS_BAN
 
     # in neither
     log_line = LogLine(
@@ -80,7 +78,7 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
             "http_status": 200
         }
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_OK
+    assert Nginx.process_http_request(config, rts, log_line) == Nginx.STATUS_OK
 
     # bingbot
     log_line = LogLine(
@@ -94,4 +92,4 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
             "path": "/index.html",
             "http_status": 200}
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_OK
+    assert Nginx.process_http_request(config, rts, log_line) == Nginx.STATUS_OK

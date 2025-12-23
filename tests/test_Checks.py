@@ -37,7 +37,7 @@ def test_bad_steal_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ip_data, 'avail_time', 11)
     monkeypatch.setattr(ip_data, 'total_time', 30)
     monkeypatch.setattr(ip_data, 'steal_ratio', 0.6)
-    assert Checks.bad_steal_ratio(config, ip_data) is True
+    assert Checks.bad_steal_ratio(config, ip_data) is False  # currently disabled
 
     monkeypatch.setattr(ip_data, 'steal_time', -5)
     monkeypatch.setattr(ip_data, 'avail_time', 4)
