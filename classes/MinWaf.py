@@ -37,7 +37,7 @@ class MinWaf:
         self.proxy: Proxy = Proxy(self.config, self.rts, self.every_10_seconds, self.every_1_hour)
 
     def every_10_seconds(self) -> None:
-        IpTables.unban_expired(self.config, self.rts)
+        self.proxy.unban_expired(self.config, self.rts)
         self.rts.ip_blacklist.load()
 
     def every_1_hour(self) -> None:

@@ -3,16 +3,19 @@ import time
 from classes.Config import Config
 from classes.IpTables import IpTables
 
+
 class DummyConfig:
     iptables_chain = "MINWAF"
     ban_time = 10
 
+
 class DummyRunTimeStats:
     def __init__(self):
-        self.banned_ips = {}
+        self.banned_ips: dict[str, float] = {}
         self.bans = 0
 
-def test_clear_and_init(monkeypatch):
+
+def test_clear_and_init(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
@@ -22,7 +25,8 @@ def test_clear_and_init(monkeypatch):
     IpTables.init(config)
     assert any("iptables" in c[0] or "ip6tables" in c[0] for c in calls)
 
-def test_slow_ipv4(monkeypatch):
+
+def test_slow_ipv4(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
@@ -31,7 +35,8 @@ def test_slow_ipv4(monkeypatch):
     assert "1.2.3.4" in rts.banned_ips
     assert any("iptables" in c[0] for c in calls)
 
-def test_slow_ipv6(monkeypatch):
+
+def test_slow_ipv6(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
@@ -40,7 +45,8 @@ def test_slow_ipv6(monkeypatch):
     assert "abcd::1234" in rts.banned_ips
     assert any("ip6tables" in c[0] for c in calls)
 
-def test_ban(monkeypatch):
+
+def test_ban(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
@@ -50,7 +56,8 @@ def test_ban(monkeypatch):
     assert rts.bans == 1
     assert any("iptables" in c[0] for c in calls)
 
-def test_unban_expired(monkeypatch):
+
+def test_unban_expired(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
