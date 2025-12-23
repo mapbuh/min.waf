@@ -301,6 +301,6 @@ class Proxy:
             return
         logger = logging.getLogger("min.waf")
         if self.config.config.getboolean("log", "ban_url"):
-            logger.info(f"{log_line.ip},{log_line.req}")
+            logger.debug(f"{log_line.ip},{log_line.req}")
         if self.config.config.getboolean("log", "ban_content"):
-            logger.info(f"{request_whole.decode(errors='ignore')}")
+            logger.debug(f"{request_whole.decode(errors='ignore')}")
