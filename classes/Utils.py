@@ -33,7 +33,7 @@ def requests_get_cached(
 
     if os.path.exists(cache_file) and time.time() - os.path.getmtime(cache_file) < ttl:
         with open(cache_file, 'rb') as f:
-            logger.debug(f"Using cached response for {url} from {cache_file}")
+            logger.info(f"Using cached response for {url} from {cache_file}")
             result = f.read()
         return result
 
@@ -42,13 +42,13 @@ def requests_get_cached(
 
     if not strict and os.path.exists(cache_file):
         with open(cache_file, 'rb') as f:
-            logger.debug(f"Using cached response for {url} from {cache_file} while fetching new data")
+            logger.info(f"Using cached response for {url} from {cache_file} while fetching new data")
             result = f.read()
         return result
 
     t.join()
     with open(cache_file, 'rb') as f:
-        logger.debug(f"Using freshly cached response for {url}")
+        logger.info(f"Using freshly cached response for {url}")
         result = f.read()
     return result
 
@@ -84,7 +84,7 @@ def fetch_and_cache(
             response.raise_for_status()
             temp_file = cache_file + ".tmp"
             with open(temp_file, 'wb') as f:
-                logger.debug(f"Fetching response from {url}")
+                logger.info(f"Fetching response from {url}")
                 f.write(response.content)
             os.replace(temp_file, cache_file)
         except Exception as e:

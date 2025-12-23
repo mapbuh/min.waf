@@ -145,11 +145,13 @@ class Proxy:
                 log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
                 log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
             except ValueError:
-                logging.warning(f"Malformed request line: '{request_line}' from {addr}")
+                logger.warning(f"Malformed request line: '{request_line}' from {addr}")
                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                 log_line = LogLine(log_line_data)
                 log_line_data['logged'] = True
-                Nginx.process_http_request(self.config, self.rts, log_line)
+                if Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BAN:
+                    self.log(log_line, request_whole)
+                    Proxy.ban(str(log_line_data['ip']), self.rts, self.config)
                 nginx_socket.close()
                 upstream_socket.close()
                 return
@@ -163,7 +165,9 @@ class Proxy:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
             log_line_data['logged'] = True
-            Nginx.process_http_request(self.config, self.rts, log_line)
+            if Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BAN:
+                self.log(log_line, request_whole)
+                Proxy.ban(str(log_line_data['ip']), self.rts, self.config)
             nginx_socket.close()
             return
         header_end = False
@@ -220,7 +224,9 @@ class Proxy:
                                 log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
                                 log_line = LogLine(log_line_data)
                                 log_line_data['logged'] = True
-                                if (Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BANNED):
+                                if (Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BAN):
+                                    self.log(log_line, request_whole)
+                                    Proxy.ban(str(log_line_data['ip']), self.rts, self.config)
                                     nginx_socket.close()
                                     upstream_socket.close()
                                     return
@@ -237,7 +243,9 @@ class Proxy:
         if not log_line_data['logged']:
             log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
             log_line = LogLine(log_line_data)
-            Nginx.process_http_request(self.config, self.rts, log_line)
+            if Nginx.process_http_request(self.config, self.rts, log_line) == Nginx.STATUS_BAN:
+                self.log(log_line, request_whole)
+                Proxy.ban(str(log_line_data['ip']), self.rts, self.config)
         return
 
     def is_safe(
@@ -256,8 +264,7 @@ class Proxy:
             dirty_data = request_whole[dirty_data_from:]
             for signature in self.config.harmful_patterns():
                 if signature.encode().lower() in dirty_data.lower():
-                    logger.debug(f"Harmful signature detected: {signature}")
-                    logger.debug(f"Dirty data: {request_whole}")
+                    logger.info(f"Harmful signature detected: {signature}")
                     # Drop the connection by not sending data upstream
                     return False
             request_clean_upto = len(request_whole)
@@ -268,7 +275,49 @@ class Proxy:
         if self.config.config.getboolean("main", "inspect_packets"):
             for signature in self.config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(path).lower():
-                    logger.debug(f"Harmful signature detected in header: {signature}")
-                    logger.debug(f"Dirty data: {path}")
+                    logger.info(f"Harmful signature detected in header: {signature}")
                     return False
         return True
+
+    @staticmethod
+    def ban(
+        ip: str,
+        rts: RunTimeStats,
+        config: Config
+    ) -> None:
+        logger = logging.getLogger("min.waf")
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.ban(ip, rts, config)
+            logger.info(f"{ip} banned via iptables")
+        else:
+            rts.banned_ips[ip] = time.time()
+            logger.info(f"{ip} banned via block method")
+
+    @staticmethod
+    def unban_expired(
+        config: Config,
+        rts: RunTimeStats
+    ) -> None:
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.unban_expired(config, rts)
+            return
+        ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
+        current_time = time.time()
+        ips_to_unban = [
+            ip for ip, ban_time in rts.banned_ips.items()
+            if (current_time - ban_time) > ban_duration
+        ]
+        for ip in ips_to_unban:
+            del rts.banned_ips[ip]
+
+    def log(self, log_line: LogLine, request_whole: bytes) -> None:
+        if not (
+            self.config.config.getboolean("log", "ban_headers") or
+            self.config.config.getboolean("log", "ban_content")
+        ):
+            return
+        logger = logging.getLogger("min.waf")
+        if self.config.config.getboolean("log", "ban_headers"):
+            logger.info(f"{log_line.ip},{log_line.req}")
+        if self.config.config.getboolean("log", "ban_content"):
+            logger.info(f"{request_whole.decode(errors='ignore')}")

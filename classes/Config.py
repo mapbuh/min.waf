@@ -106,7 +106,6 @@ class BotWhitelist:
                                 whitelist_bots_list[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
                                 logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
-                    logger.debug(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
         self.whitelist_cache = {}
@@ -120,7 +119,7 @@ class BotWhitelist:
                     self.config.config.getboolean('log', 'whitelist')
                     and self.config.config.getboolean('log', 'bots')
                 ):
-                    logger.debug(f"{ip} bot whitelist cache hit for bot {self.whitelist_cache[user_agent][ip]}")
+                    logger.info(f"{ip} bot whitelist cache hit for bot {self.whitelist_cache[user_agent][ip]}")
                 return True
         for bot, networks in self.whitelist.items():
             if bot.lower() in user_agent.lower():
@@ -130,7 +129,7 @@ class BotWhitelist:
                             self.config.config.getboolean('log', 'whitelist')
                             and self.config.config.getboolean('log', 'bots')
                         ):
-                            logger.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
+                            logger.info(f"{ip} bot whitelist match in {net} for bot {bot}")
                         self.whitelist_cache.setdefault(user_agent, {})[ip] = bot
                         return True
         return False

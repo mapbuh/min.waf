@@ -78,7 +78,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404,
         "ua": "EvilBot"
     })
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
     log_line = DummyLogLine({
         "ip": "1.2.3.6",  # banned IP
         "host": "example.com",
@@ -86,7 +86,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 200,
         "ua": "Mozilla/5.0"
     })
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
     log_line = DummyLogLine({
         "ip": "1.2.3.4",
         "host": "example.com",
@@ -102,7 +102,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404,
         "ua": "Mozilla/5.0"
     })
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
     log_line = DummyLogLine({
         "ip": "1.2.3.8",
         "host": "example.com",
@@ -190,7 +190,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404,
         "ua": "Mozilla/5.0"
     })
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
     log_line = DummyLogLine({
         "ip": "1.2.3.9",
         "host": "example.com",
@@ -199,7 +199,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "ua": "Mozilla/5.0"
     })
     monkeypatch.setattr(Checks, "bad_steal_ratio", lambda config, ip_data: True)
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
 
     # good bot
     log_line = DummyLogLine({
@@ -219,7 +219,7 @@ def test_process_line(monkeypatch: pytest.MonkeyPatch):
         "http_status": 404,
         "ua": "python-urllib"
     })
-    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "raw log line") == Nginx.STATUS_BAN
 
     # static file
     log_line = DummyLogLine({

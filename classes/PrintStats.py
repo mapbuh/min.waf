@@ -21,5 +21,5 @@ class PrintStats:
                 continue
             if path in ["/", "/robots.txt", "/favicon.ico", "/apple-touch-icon.png"]:
                 continue
-            logger.debug(f"Path: {path}, Total Probes: {rts.inter_domain.path[path].total_count()}")
+            logger.info(f"Path: {path}, Total Probes: {rts.inter_domain.path[path].total_count()}")
             counter -= 1

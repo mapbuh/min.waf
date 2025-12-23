@@ -68,7 +68,7 @@ def test_bot_in_blacklist(monkeypatch: pytest.MonkeyPatch):
     log_line = LogLine(
         data={"ip": "9.9.9.9", "host": "example.com", "ua": "SomeOtherBot", "path": "/index.html", "http_status": 200}
     )
-    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_BANNED
+    assert Nginx.process_http_request(config, rts, log_line, "") == Nginx.STATUS_BAN
 
     # in neither
     log_line = LogLine(
