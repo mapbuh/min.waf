@@ -293,23 +293,6 @@ class Proxy:
             rts.banned_ips[ip] = time.time()
             logger.info(f"{ip} banned via block method")
 
-    @staticmethod
-    def unban_expired(
-        config: Config,
-        rts: RunTimeStats
-    ) -> None:
-        if config.config.get('main', 'ban_method') == 'iptables':
-            IpTables.unban_expired(config, rts)
-            return
-        ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
-        current_time = time.time()
-        ips_to_unban = [
-            ip for ip, ban_time in rts.banned_ips.items()
-            if (current_time - ban_time) > ban_duration
-        ]
-        for ip in ips_to_unban:
-            del rts.banned_ips[ip]
-
     def log(self, log_line: LogLine, request_whole: bytes) -> None:
         if not (
             self.config.config.getboolean("log", "ban_url") or

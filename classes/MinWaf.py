@@ -37,7 +37,7 @@ class MinWaf:
         self.proxy: Proxy = Proxy(self.config, self.rts, self.every_10_seconds, self.every_1_hour)
 
     def every_10_seconds(self) -> None:
-        self.proxy.unban_expired(self.config, self.rts)
+        self.unban_expired(self.config, self.rts)
         self.rts.ip_blacklist.load()
 
     def every_1_hour(self) -> None:
@@ -133,3 +133,20 @@ class MinWaf:
             self.lockfile_remove()
         with open(self.config.config.get("main", "lockfile"), "w") as f:
             f.write(str(os.getpid()))
+
+    @staticmethod
+    def unban_expired(
+        config: Config,
+        rts: RunTimeStats
+    ) -> None:
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.unban_expired(config, rts)
+            return
+        ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
+        current_time = time.time()
+        ips_to_unban = [
+            ip for ip, ban_time in rts.banned_ips.items()
+            if (current_time - ban_time) > ban_duration
+        ]
+        for ip in ips_to_unban:
+            del rts.banned_ips[ip]
