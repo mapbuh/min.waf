@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 
-import logging
-import os
 import click
+import logging
 
 from classes.Config import Config
 from classes.MinWaf import MinWaf
@@ -15,15 +14,10 @@ def main(
 ) -> None:
     configObj: Config = Config(config)
 
-    log_dir = configObj.config.get('log', 'file')
-    if not log_dir:
-        log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
-    if not os.path.exists(log_dir):
-        os.makedirs(log_dir)
-
+    log_file = configObj.config.get('log', 'file')
     logger = logging.getLogger('min.waf')
     logger.setLevel(logging.DEBUG)
-    fh = logging.FileHandler(os.path.join(log_dir, 'min.waf.log'))
+    fh = logging.FileHandler(log_file)
     fh.setLevel(logging.DEBUG)
     # create console handler with a higher log level
     ch = logging.StreamHandler()
