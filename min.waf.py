@@ -15,7 +15,7 @@ def main(
 ) -> None:
     configObj: Config = Config(config)
 
-    log_dir = configObj.config.get('log', 'dir')
+    log_dir = configObj.config.get('log', 'file')
     if not log_dir:
         log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "log")
     if not os.path.exists(log_dir):
