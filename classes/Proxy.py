@@ -129,6 +129,9 @@ class Proxy:
                             response_status = int(response_status_str)
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
+                                logger = logging.getLogger("min.waf")
+                                logger.warning(f"{httpHeaders.ip} banned;")
+                                logger.warning(self.rts.banned_ips)
                                 self.ban(str(data), self.rts, self.config)
                                 if self.config.mode_honeypot:
                                     upstream_socket.close()
