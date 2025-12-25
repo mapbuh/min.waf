@@ -86,6 +86,7 @@ class Proxy:
             request_whole: bytes = b'',
             request_clean_upto: int = 0,
     ) -> None:
+        logger = logging.getLogger("min.waf")
         response_status: int | None = None
         response_whole: bytes = b''
         p = select.epoll()
@@ -117,8 +118,10 @@ class Proxy:
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
-                            _, response_status_str, _ = response_whole \
-                                .decode(errors='ignore').splitlines()[0].partition(' ')
+                            first_line = response_whole.decode(errors='ignore').splitlines()[0]
+                            logger.warning(f"Response first line: {first_line}")
+                            _, response_status_str, _ = first_line.partition(' ')
+                            logger.warning(f"Response status str: {response_status_str}")
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(str(data), self.rts, self.config)
