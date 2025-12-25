@@ -120,7 +120,7 @@ class Proxy:
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
                             first_line = response_whole.decode(errors='ignore').splitlines()[0]
                             logger.warning(f"Response first line: {first_line}")
-                            _, response_status_str, _ = first_line.partition(' ')
+                            _, response_status_str, _ = first_line.split(' ', 2)
                             logger.warning(f"Response status str: {response_status_str}")
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
