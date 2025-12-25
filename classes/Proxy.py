@@ -86,7 +86,6 @@ class Proxy:
             request_whole: bytes = b'',
             request_clean_upto: int = 0,
     ) -> None:
-        logger = logging.getLogger("min.waf")
         response_status: int | None = None
         response_whole: bytes = b''
         p = select.epoll()
@@ -111,7 +110,6 @@ class Proxy:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
                             break
-                        logger.warning("Read from nginx_socket" + data.decode(errors='ignore'))
                         nginx_buffer += data
                         request_whole += data
                         if not Checks.content(self.config, request_whole, request_clean_upto):
@@ -123,16 +121,13 @@ class Proxy:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
                             break
-                        logger.warning("Read from upstream_socket" + data.decode(errors='ignore'))
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
                             first_line = response_whole.decode(errors='ignore').splitlines()[0]
-                            logger.warning(f"Response first line: {first_line}")
                             _, response_status_str, _ = first_line.split(' ', 2)
-                            logger.warning(f"Response status str: {response_status_str}")
                             response_status = int(response_status_str)
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
@@ -145,22 +140,20 @@ class Proxy:
                 elif event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
-                        logger.warning("Wrote to upstream_socket " + nginx_buffer[:sent].decode(errors='ignore'))
                         nginx_buffer = nginx_buffer[sent:]
                         if len(nginx_buffer) == 0:
                             p.modify(upstream_socket, select.POLLIN)
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
                         sent = nginx_socket.send(upstream_buffer)
-                        logger.warning("Wrote to nginx_socket " + upstream_buffer[:sent].decode(errors='ignore'))
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
                 elif event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
-                        logger.warning("Closing nginx_socket due to HUP or ERR")
+                        p.unregister(nginx_socket.fileno())
                         nginx_socket.close()
                     elif fd == upstream_socket.fileno():
-                        logger.warning("Closing upstream_socket due to HUP or ERR")
+                        p.unregister(upstream_socket.fileno())
                         upstream_socket.close()
 
     def only_read(self, nginx_socket: socket.socket, nginx_buffer: bytes) -> None:
