@@ -24,7 +24,7 @@ def main(
     ch.setLevel(logging.INFO)
     # create formatter and add it to the handlers
     chformatter = logging.Formatter('%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    fhformatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    fhformatter = logging.Formatter('%(asctime)s - %(thread)d - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     ch.setFormatter(chformatter)
     fh.setFormatter(fhformatter)
     # add the handlers to logger
