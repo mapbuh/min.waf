@@ -139,9 +139,11 @@ class Proxy:
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
+                            if len(upstream_buffer) == 0:
+                                p.unregister(upstream_socket.fileno())
+                                nginx_socket.close()
                             break
                         upstream_buffer += data
-                        p.modify(nginx_socket, select.POLLOUT)
                 if event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         logger.debug("Sending data to upstream")
