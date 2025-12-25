@@ -38,8 +38,6 @@ class Nginx:
         if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
-        if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip, httpHeaders.ua):
-            return Nginx.STATUS_OK
         if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
             if (
                 config.config.getboolean('log', 'whitelist')

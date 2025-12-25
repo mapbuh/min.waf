@@ -4,7 +4,7 @@ import urllib.parse
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
 from classes.IpData import IpData
-
+from classes.Bots import Bots
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -15,6 +15,37 @@ class Checks:
         if httpHeaders.ip in rts.banned_ips.keys():
             logger.info(f"{httpHeaders.ip} banned; already banned")
             return False
+        if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip, httpHeaders.ua):
+            return True
+        if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
+            if (
+                config.config.getboolean('log', 'whitelist')
+                and config.config.getboolean('log', 'bots')
+            ):
+                logger.info(f"{httpHeaders.ip} {httpHeaders.ua} bot whitelist match found")
+            return True
+        if Bots.good_bot(config, httpHeaders.ua):
+            if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
+                logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
+            return True
+        if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
+            return False
+        if Bots.bad_bot(config, httpHeaders.ua):
+            if config.config.getboolean('log', 'bots'):
+                logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
+            return False
+        if (
+            config.host_has_trigger(httpHeaders.host)
+            and rts.ip_whitelist.is_trigger(
+                httpHeaders.host,
+                httpHeaders.ip,
+                httpHeaders.path,
+                httpHeaders.http_status
+            )
+        ):
+            return True
+        if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
+            return True
         if config.config.getboolean("main", "inspect_packets"):
             for signature in config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
