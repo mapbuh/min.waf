@@ -117,7 +117,8 @@ class Proxy:
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
-                            _, response_status_str, _ = response_whole.splitlines()[0].partition(b' ')
+                            _, response_status_str, _ = response_whole \
+                                .decode(errors='ignore').splitlines()[0].partition(' ')
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(str(data), self.rts, self.config)
