@@ -31,7 +31,7 @@ class Checks:
 
     @staticmethod
     def content(config: Config, buffer: bytes, clean_upto: int) -> bool:
-        if config.config.get('main', 'inspect_content') == 'False':
+        if config.config.get('main', 'inspect_packets') == 'False':
             return True
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
             return True
