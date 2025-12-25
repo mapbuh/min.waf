@@ -4,6 +4,7 @@ import select
 import socket
 import threading
 import time
+from typing import Callable
 
 from classes.Checks import Checks
 from classes.Config import Config
@@ -13,7 +14,8 @@ from classes.RunTimeStats import RunTimeStats
 
 
 class Proxy:
-    from typing import Callable
+
+    buffer_size: int = 16
 
     def __init__(
         self,
@@ -66,7 +68,7 @@ class Proxy:
             events = epoll.poll()
             for _, event in events:
                 if event & select.EPOLLIN:
-                    data = nginx_socket.recv(8192)
+                    data = nginx_socket.recv(Proxy.buffer_size)
                     buffer += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
                 epoll.unregister(nginx_socket.fileno())
@@ -102,7 +104,7 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
-                        data = nginx_socket.recv(8192)
+                        data = nginx_socket.recv(Proxy.buffer_size)
                         if not data:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
@@ -118,7 +120,7 @@ class Proxy:
                                 self.log(request_whole)
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
-                        data = upstream_socket.recv(8192)
+                        data = upstream_socket.recv(Proxy.buffer_size)
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
@@ -175,7 +177,7 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
-                        data = nginx_socket.recv(8192)
+                        data = nginx_socket.recv(Proxy.buffer_size)
                         if not data:
                             nginx_socket.close()
                             break
