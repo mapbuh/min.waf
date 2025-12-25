@@ -23,9 +23,10 @@ def main(
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
     # create formatter and add it to the handlers
-    formatter = logging.Formatter('%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    ch.setFormatter(formatter)
-    fh.setFormatter(formatter)
+    chformatter = logging.Formatter('%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    fhformatter = logging.Formatter('%(asctime)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    ch.setFormatter(chformatter)
+    fh.setFormatter(fhformatter)
     # add the handlers to logger
     logger.addHandler(ch)
     logger.addHandler(fh)

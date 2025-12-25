@@ -128,15 +128,13 @@ class Proxy:
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
+                                self.log(request_whole)
                                 data = None
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
-                            if not self.config.mode_honeypot:
-                                p.unregister(nginx_socket.fileno())
-                                nginx_socket.close()
-                                if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-                                    self.log(request_whole)
+                            p.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
