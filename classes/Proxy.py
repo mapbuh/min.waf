@@ -139,7 +139,9 @@ class Proxy:
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
+                            logger.debug("Upstream socket closed the connection")
                             if len(upstream_buffer) == 0:
+                                logger.debug("No more data to send to Nginx, closing Nginx socket")
                                 p.unregister(upstream_socket.fileno())
                                 nginx_socket.close()
                             break
