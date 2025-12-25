@@ -1,12 +1,12 @@
 from typing import Any
 from classes.ExpiringList import ExpiringList
-from classes.LogLine import LogLine
 from classes.Config import Config
+from classes.HttpHeaders import HttpHeaders
 
 
 class IpData:
     _raw_lines: ExpiringList[str]
-    _log_lines: ExpiringList[LogLine]
+    _log_lines: ExpiringList[HttpHeaders]
 
     def __init__(self, config: Config, key: str, key_name: str, data: dict[str, Any]):
         self.config = config
@@ -23,7 +23,7 @@ class IpData:
         return self._raw_lines
 
     @property
-    def log_lines(self) -> ExpiringList[LogLine]:
+    def log_lines(self) -> ExpiringList[HttpHeaders]:
         assert self._log_lines is not None
         return self._log_lines
 

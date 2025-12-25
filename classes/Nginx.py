@@ -6,7 +6,7 @@ from classes.Config import Config
 from classes.ExpiringList import ExpiringList
 from classes.IpData import IpData
 from classes.KnownAttacks import KnownAttacks
-from classes.LogLine import LogLine
+from classes.HttpHeaders import HttpHeaders
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -29,100 +29,100 @@ class Nginx:
     def process_http_request(
         config: Config,
         rts: RunTimeStats,
-        log_line: LogLine,
+        httpHeaders: HttpHeaders,
     ) -> str:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
         logger = logging.getLogger("min.waf")
-        if log_line.ip.strip() == '' and log_line.host.strip() == '':
+        if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
             return Nginx.STATUS_UNKNOWN
         rts.lines_parsed += 1
-        if rts.ip_whitelist.is_whitelisted(log_line.host, log_line.ip, log_line.ua):
+        if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip, httpHeaders.ua):
             return Nginx.STATUS_OK
-        if config.bot_whitelist.check(log_line.ua, log_line.ip):
+        if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
             if (
                 config.config.getboolean('log', 'whitelist')
                 and config.config.getboolean('log', 'bots')
             ):
-                logger.info(f"{log_line.ip} {log_line.ua} bot whitelist match found")
+                logger.info(f"{httpHeaders.ip} {httpHeaders.ua} bot whitelist match found")
             return Nginx.STATUS_OK
-        if Bots.good_bot(config, log_line.ua):
+        if Bots.good_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
-                logger.info(f"{log_line.ip} good bot: {log_line.ua}")
+                logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
             return Nginx.STATUS_OK
-        if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(log_line.ip):
+        if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
             return Nginx.STATUS_BAN
-        if Bots.bad_bot(config, log_line.ua):
+        if Bots.bad_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'bots'):
-                logger.info(f"{log_line.ip} banned; Bad bot detected: {log_line.ua}")
+                logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             return Nginx.STATUS_BAN
         if (
-            config.host_has_trigger(log_line.host)
+            config.host_has_trigger(httpHeaders.host)
             and rts.ip_whitelist.is_trigger(
-                log_line.host,
-                log_line.ip,
-                log_line.path,
-                log_line.http_status
+                httpHeaders.host,
+                httpHeaders.ip,
+                httpHeaders.path,
+                httpHeaders.http_status
             )
         ):
             return Nginx.STATUS_OK
-        if log_line.path.endswith(tuple(config.getlist('main', 'static_files'))):
+        if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
             return Nginx.STATUS_OK
-        ip_data = rts.ip_stats.get(log_line.ip)
+        ip_data = rts.ip_stats.get(httpHeaders.ip)
         if ip_data is None:
             ip_data = IpData(
                 config,
-                log_line.ip,
+                httpHeaders.ip,
                 'ip',
                 {
                     "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                     "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                 }
             )
-        ip_data.log_lines.append(log_line.req_ts, log_line)
+        ip_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
         if config.config.getboolean('main', 'url_stats'):
-            url_data = rts.url_stats.get(log_line.path)
+            url_data = rts.url_stats.get(httpHeaders.path)
             if url_data is None:
                 url_data = IpData(
                     config,
-                    log_line.path,
+                    httpHeaders.path,
                     'path',
                     {
                         "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                         "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                     }
                 )
-            url_data.log_lines.append(log_line.req_ts, log_line)
+            url_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
         if config.config.getboolean('main', 'ua_stats'):
-            ua_data = rts.ua_stats.get(log_line.ua)
+            ua_data = rts.ua_stats.get(httpHeaders.ua)
             if ua_data is None:
                 ua_data = IpData(
                     config,
-                    log_line.ua,
+                    httpHeaders.ua,
                     'user_agent',
                     {
                         "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                         "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
                     }
                 )
-            ua_data.log_lines.append(log_line.req_ts, log_line)
+            ua_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
-        if KnownAttacks.is_known(config, log_line):
+        if KnownAttacks.is_known(config, httpHeaders):
             return Nginx.STATUS_BAN
-        Checks.log_probes(log_line, rts)
+        Checks.log_probes(httpHeaders, rts)
 
-        rts.ip_stats.create(ts=log_line.req_ts, key=log_line.ip, value=ip_data)
+        rts.ip_stats.create(ts=httpHeaders.ts, key=httpHeaders.ip, value=ip_data)
         if config.config.getboolean('main', 'url_stats') and url_data is not None:
-            rts.url_stats.create(ts=log_line.req_ts,
-                                 key=log_line.path, value=url_data)
+            rts.url_stats.create(ts=httpHeaders.ts,
+                                 key=httpHeaders.path, value=url_data)
         if config.config.getboolean('main', 'ua_stats') and ua_data is not None:
-            rts.ua_stats.create(ts=log_line.req_ts,
-                                key=log_line.ua, value=ua_data)
+            rts.ua_stats.create(ts=httpHeaders.ts,
+                                key=httpHeaders.ua, value=ua_data)
 
-        if Checks.bad_http_stats(config, log_line, ip_data):
+        if Checks.bad_http_stats(config, httpHeaders, ip_data):
             return Nginx.STATUS_BAN
         if Checks.bad_steal_ratio(config, ip_data):
             return Nginx.STATUS_BAN

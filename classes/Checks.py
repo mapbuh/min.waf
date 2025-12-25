@@ -1,18 +1,57 @@
 import logging
+import urllib.parse
 
 from classes.Config import Config
-from classes.LogLine import LogLine
+from classes.HttpHeaders import HttpHeaders
 from classes.IpData import IpData
+
 from classes.RunTimeStats import RunTimeStats
 
 
 class Checks:
     @staticmethod
-    def bad_http_stats(config: Config, log_line: LogLine, ip_data: IpData) -> bool:
+    def headers(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
+        logger = logging.getLogger("min.waf")
+        if httpHeaders.ip in rts.banned_ips.keys():
+            logger.info(f"{httpHeaders.ip} banned; already banned")
+            return False
+        if config.config.getboolean("main", "inspect_packets"):
+            for signature in config.harmful_patterns():
+                if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
+                    logger.info(f"Harmful signature detected in header: {signature}")
+                    return False
+        return True
+
+    @staticmethod
+    def headers_with_status(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
+        from classes.Nginx import Nginx
+        if Nginx.process_http_request(config, rts, httpHeaders) == Nginx.STATUS_BAN:
+            return False
+        return True
+
+    @staticmethod
+    def content(config: Config, buffer: bytes, clean_upto: int) -> bool:
+        if config.config.get('main', 'inspect_content') == 'False':
+            return True
+        if clean_upto >= config.config.getint("main", "max_inspect_size"):
+            return True
+        # Inspect only the new data since last clean point
+        dirty_data_from: int = clean_upto - config.longest_harmful_pattern() + 1
+        if dirty_data_from < 0:
+            dirty_data_from = 0
+        dirty_data = buffer[dirty_data_from:]
+        for signature in config.harmful_patterns():
+            if signature.encode().lower() in dirty_data.lower():
+                return False
+        clean_upto = len(buffer)
+        return True
+
+    @staticmethod
+    def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:
         logger = logging.getLogger("min.waf")
         if ip_data.http_status_bad >= float(config.config.get('main', 'http_status_bad_threshold')):
             logger.info(
-                f"{log_line.ip} banned; Bad http_status ratio: {ip_data.http_status_bad:.2f} "
+                f"{httpHeaders.ip} banned; Bad http_status ratio: {ip_data.http_status_bad:.2f} "
                 f"from {ip_data.request_count} reqs")
             return True
         return False
@@ -34,7 +73,7 @@ class Checks:
         return False
 
     @staticmethod
-    def log_probes(log_line: LogLine, rts: RunTimeStats) -> None:
+    def log_probes(httpHeaders: HttpHeaders, rts: RunTimeStats) -> None:
         # TODO - make it LRU cache
-        if log_line.http_status != 200:
-            rts.inter_domain.add(log_line.path, log_line.host, log_line.http_status)
+        if httpHeaders.http_status != 200:
+            rts.inter_domain.add(httpHeaders.path, httpHeaders.host, httpHeaders.http_status or 0)

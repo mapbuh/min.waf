@@ -20,6 +20,10 @@ class Config:
         self.config.read(minwaf_path + "/defaults.conf")
         self.config.read(self.filename)
 
+    @property
+    def mode_honeypot(self) -> bool:
+        return self.config.get('main', 'ban_method') == 'internal' and self.config.getboolean('log', 'requests')
+
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]
 
