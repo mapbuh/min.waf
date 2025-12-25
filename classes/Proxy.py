@@ -117,6 +117,7 @@ class Proxy:
                         logger.warning("Reading from upstream_socket")
                         data = upstream_socket.recv(8192)
                         upstream_buffer += data
+                        p.modify(nginx_socket, select.POLLIN | select.POLLOUT)
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
