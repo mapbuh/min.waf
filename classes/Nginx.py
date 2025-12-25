@@ -1,5 +1,3 @@
-import logging
-
 from classes.Checks import Checks
 from classes.Config import Config
 from classes.ExpiringList import ExpiringList
@@ -33,7 +31,6 @@ class Nginx:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
-        logger = logging.getLogger("min.waf")
         if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
             return Nginx.STATUS_UNKNOWN
         ip_data = rts.ip_stats.get(httpHeaders.ip)

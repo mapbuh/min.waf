@@ -62,11 +62,12 @@ class IDS:
 
 
 class RunTimeStats:
+    banned_ips: dict[str, float] = {}
+
     def __init__(self, config: Config) -> None:
         self.config = config
         self.start_time: float = 0
         self.ip_whitelist: IpWhitelist = IpWhitelist(config)
-        self.banned_ips: dict[str, float] = {}
         self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
