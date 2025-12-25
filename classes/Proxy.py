@@ -109,7 +109,7 @@ class Proxy:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
                             if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-                                self.log(request_whole)
+                                self.log(httpHeaders, request_whole)
                             break
                         nginx_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
@@ -117,7 +117,7 @@ class Proxy:
                             if not Checks.content(self.config, httpHeaders, request_whole, request_clean_upto):
                                 self.ban(str(data), self.rts, self.config)
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
-                                self.log(request_whole)
+                                self.log(httpHeaders, request_whole)
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
                         data = upstream_socket.recv(Proxy.buffer_size)
@@ -130,7 +130,7 @@ class Proxy:
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
-                                self.log(request_whole)
+                                self.log(httpHeaders, request_whole)
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
                                 data = None
@@ -167,7 +167,13 @@ class Proxy:
                         p.unregister(upstream_socket.fileno())
                         upstream_socket.close()
 
-    def only_read(self, nginx_socket: socket.socket, nginx_buffer: bytes, request_whole: bytes) -> None:
+    def only_read(
+        self,
+        httpHeaders: HttpHeaders,
+        nginx_socket: socket.socket,
+        nginx_buffer: bytes,
+        request_whole: bytes
+    ) -> None:
         p = select.epoll()
         p.register(nginx_socket, select.POLLIN)
         while True:
@@ -185,14 +191,14 @@ class Proxy:
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
-                                self.log(request_whole)
+                                self.log(httpHeaders, request_whole)
                                 nginx_socket.close()
                                 break
                 if event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
                         nginx_socket.close()
         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-            self.log(request_whole)
+            self.log(httpHeaders, request_whole)
 
     def parse_headers(self, nginx_socket: socket.socket, buffer: bytes) -> HttpHeaders:
         buffer_decoded = buffer.decode(errors='ignore')
@@ -281,7 +287,7 @@ class Proxy:
                 request_clean_upto
             )
         elif self.config.mode_honeypot:
-            self.only_read(nginx_socket, nginx_buffer, request_whole)
+            self.only_read(httpHeaders, nginx_socket, nginx_buffer, request_whole)
         return
 
     @staticmethod
@@ -295,8 +301,10 @@ class Proxy:
         else:
             rts.banned_ips[ip] = time.time()
 
-    def log(self, request_whole: bytes) -> None:
+    def log(self, httpHeaders: HttpHeaders, request_whole: bytes) -> None:
         if not self.config.config.getboolean("log", "requests"):
+            return
+        if not httpHeaders.status == HttpHeaders.STATUS_BAD:
             return
         logger = logging.getLogger("min.waf")
         logger.debug(f"{request_whole[:self.config.config.getint('main', 'max_inspect_size')].decode(errors='ignore')}")
