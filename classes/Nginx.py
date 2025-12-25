@@ -1,6 +1,5 @@
 import logging
 
-from classes.Bots import Bots
 from classes.Checks import Checks
 from classes.Config import Config
 from classes.ExpiringList import ExpiringList
@@ -37,36 +36,6 @@ class Nginx:
         logger = logging.getLogger("min.waf")
         if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
             return Nginx.STATUS_UNKNOWN
-        rts.lines_parsed += 1
-        if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
-            if (
-                config.config.getboolean('log', 'whitelist')
-                and config.config.getboolean('log', 'bots')
-            ):
-                logger.info(f"{httpHeaders.ip} {httpHeaders.ua} bot whitelist match found")
-            return Nginx.STATUS_OK
-        if Bots.good_bot(config, httpHeaders.ua):
-            if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
-                logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
-            return Nginx.STATUS_OK
-        if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
-            return Nginx.STATUS_BAN
-        if Bots.bad_bot(config, httpHeaders.ua):
-            if config.config.getboolean('log', 'bots'):
-                logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
-            return Nginx.STATUS_BAN
-        if (
-            config.host_has_trigger(httpHeaders.host)
-            and rts.ip_whitelist.is_trigger(
-                httpHeaders.host,
-                httpHeaders.ip,
-                httpHeaders.path,
-                httpHeaders.http_status
-            )
-        ):
-            return Nginx.STATUS_OK
-        if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
-            return Nginx.STATUS_OK
         ip_data = rts.ip_stats.get(httpHeaders.ip)
         if ip_data is None:
             ip_data = IpData(
