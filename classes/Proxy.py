@@ -106,6 +106,7 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
+                        logger.warning("Reading from nginx_socket")
                         data = nginx_socket.recv(8192)
                         nginx_buffer += data
                         request_whole += data
@@ -113,6 +114,7 @@ class Proxy:
                             self.ban(str(data), self.rts, self.config)
                         p.modify(upstream_socket, select.POLLIN | select.POLLOUT)
                     elif fd == upstream_socket.fileno():
+                        logger.warning("Reading from upstream_socket")
                         data = upstream_socket.recv(8192)
                         upstream_buffer += data
                         if not response_status:
@@ -132,19 +134,23 @@ class Proxy:
                                     nginx_socket.close()
                 if event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
+                        logger.warning("Writing to upstream_socket")
                         sent = upstream_socket.send(nginx_buffer)
                         nginx_buffer = nginx_buffer[sent:]
                         if len(nginx_buffer) == 0:
                             p.modify(upstream_socket, select.POLLIN)
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
+                        logger.warning("Writing to nginx_socket")
                         sent = nginx_socket.send(upstream_buffer)
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
                 if event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
+                        logger.warning("Closing nginx_socket due to HUP or ERR")
                         nginx_socket.close()
                     elif fd == upstream_socket.fileno():
+                        logger.warning("Closing upstream_socket due to HUP or ERR")
                         upstream_socket.close()
 
     def only_read(self, nginx_socket: socket.socket, nginx_buffer: bytes) -> None:
