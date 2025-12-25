@@ -157,7 +157,12 @@ class Proxy:
                         logger.debug(f'Sent {sent} bytes to nginx: {upstream_buffer}')
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
-                            p.modify(nginx_socket, select.POLLIN)
+                            if upstream_socket.fileno() == -1:
+                                logger.debug("Nginx socket closed the connection 6")
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
+                            else:
+                                p.modify(nginx_socket, select.POLLIN)
                 if event & (select.POLLHUP | select.POLLERR):
                     logger.debug('case 4')
                     if fd == nginx_socket.fileno():
