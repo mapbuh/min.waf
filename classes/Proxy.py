@@ -60,7 +60,7 @@ class Proxy:
             if s:
                 s.close()
 
-    def read_headers(self, nginx_socket: socket.socket, buffer: bytes, request_whole: bytes) -> None:
+    def read_headers(self, nginx_socket: socket.socket, buffer: bytes) -> bytes:
         epoll = select.epoll()
         epoll.register(nginx_socket.fileno(), select.EPOLLIN)
         while True:
@@ -69,13 +69,12 @@ class Proxy:
                 if event & select.EPOLLIN:
                     data = nginx_socket.recv(8192)
                     buffer += data
-                    request_whole += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
                 logger = logging.getLogger("min.waf")
                 logger.warning(f"1a: {buffer.decode(errors='ignore')}")
-                logger.warning(f"1b: {request_whole.decode(errors='ignore')}")
                 epoll.unregister(nginx_socket.fileno())
                 break
+        return buffer
 
     def forward(
             self,
@@ -225,7 +224,8 @@ class Proxy:
         request_clean_upto: int = 0
 
         nginx_socket.setblocking(False)
-        self.read_headers(nginx_socket, nginx_buffer, request_whole)
+        nginx_buffer = self.read_headers(nginx_socket, nginx_buffer)
+        request_whole = nginx_buffer
         logger = logging.getLogger("min.waf")
         logger.warning(f"2a: {nginx_buffer.decode(errors='ignore')}")
         logger.warning(f"2b: {request_whole.decode(errors='ignore')}")
