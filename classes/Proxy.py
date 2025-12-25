@@ -128,14 +128,12 @@ class Proxy:
                                 logger = logging.getLogger("min.waf")
                                 logger.warning(f"{httpHeaders.ip} banned; headers_with_status detected")
                                 logger.warning(self.rts.banned_ips)
-                                if self.config.mode_honeypot:
-                                    upstream_socket.close()
-                                else:
-                                    upstream_socket.close()
-                                    nginx_socket.close()
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
+                            if not self.config.mode_honeypot:
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
