@@ -223,6 +223,9 @@ class Proxy:
 
         nginx_socket.setblocking(False)
         self.read_headers(nginx_socket, nginx_buffer, request_whole)
+        logger = logging.getLogger("min.waf")
+        logger.debug(f"{nginx_buffer.decode(errors='ignore')}")
+        logger.debug(f"{request_whole.decode(errors='ignore')}")
         httpHeaders = self.parse_headers(nginx_socket, nginx_buffer)
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
