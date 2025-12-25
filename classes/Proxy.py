@@ -136,6 +136,7 @@ class Proxy:
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
                                 data = None
+                                break
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
