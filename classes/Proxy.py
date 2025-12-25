@@ -15,7 +15,7 @@ from classes.RunTimeStats import RunTimeStats
 
 class Proxy:
 
-    buffer_size: int = 1024  # 1 KB
+    buffer_size: int = 8192  # 8 KB
 
     def __init__(
         self,
