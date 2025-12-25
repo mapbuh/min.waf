@@ -2,6 +2,10 @@ import time
 
 
 class HttpHeaders:
+    STATUS_NEUTRAL = 0
+    STATUS_BAD = -1
+    STATUS_GOOD = 1
+
     def __init__(
         self,
         host: str = '',
@@ -28,3 +32,4 @@ class HttpHeaders:
         self.req = f"{host}{path}"
         self.http_status = http_status
         self.ts = int(req_ts or time.time())
+        self.status: int = self.STATUS_NEUTRAL

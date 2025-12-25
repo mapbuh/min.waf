@@ -114,7 +114,7 @@ class Proxy:
                         nginx_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
-                            if not Checks.content(self.config, request_whole, request_clean_upto):
+                            if not Checks.content(self.config, httpHeaders, request_whole, request_clean_upto):
                                 self.ban(str(data), self.rts, self.config)
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(request_whole)
@@ -141,7 +141,7 @@ class Proxy:
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
-                elif event & select.POLLOUT:
+                if event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
                         nginx_buffer = nginx_buffer[sent:]
@@ -152,7 +152,7 @@ class Proxy:
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
-                elif event & (select.POLLHUP | select.POLLERR):
+                if event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
                         logger.debug("Nginx socket closed the connection 3")
                         p.unregister(nginx_socket.fileno())
@@ -259,7 +259,7 @@ class Proxy:
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
-        if not Checks.content(self.config, request_whole, request_clean_upto):
+        if not Checks.content(self.config, httpHeaders, request_whole, request_clean_upto):
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
         if not forward and not self.config.mode_honeypot:

@@ -62,7 +62,7 @@ class Checks:
         return True
 
     @staticmethod
-    def content(config: Config, buffer: bytes, clean_upto: int) -> bool:
+    def content(config: Config, httpHeaders: HttpHeaders, buffer: bytes, clean_upto: int) -> bool:
         if config.config.get('main', 'inspect_packets') == 'False':
             return True
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
@@ -76,6 +76,7 @@ class Checks:
             if signature.encode().lower() in dirty_data.lower():
                 logger = logging.getLogger("min.waf")
                 logger.info(f"Harmful signature detected in content: {signature}")
+                httpHeaders.status = HttpHeaders.STATUS_BAD
                 return False
         clean_upto = len(buffer)
         return True
