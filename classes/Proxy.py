@@ -107,6 +107,10 @@ class Proxy:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
                         data = nginx_socket.recv(8192)
+                        if not data:
+                            p.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
+                            break
                         logger.warning("Read from nginx_socket" + data.decode(errors='ignore'))
                         nginx_buffer += data
                         request_whole += data
@@ -115,6 +119,10 @@ class Proxy:
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
                         data = upstream_socket.recv(8192)
+                        if not data:
+                            p.unregister(upstream_socket.fileno())
+                            upstream_socket.close()
+                            break
                         logger.warning("Read from upstream_socket" + data.decode(errors='ignore'))
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
