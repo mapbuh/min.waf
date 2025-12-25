@@ -72,8 +72,8 @@ class Proxy:
                     request_whole += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
                 logger = logging.getLogger("min.waf")
-                logger.debug(f"{buffer.decode(errors='ignore')}")
-                logger.debug(f"{request_whole.decode(errors='ignore')}")
+                logger.warning(f"1a: {buffer.decode(errors='ignore')}")
+                logger.warning(f"1b: {request_whole.decode(errors='ignore')}")
                 epoll.unregister(nginx_socket.fileno())
                 break
 
@@ -227,8 +227,8 @@ class Proxy:
         nginx_socket.setblocking(False)
         self.read_headers(nginx_socket, nginx_buffer, request_whole)
         logger = logging.getLogger("min.waf")
-        logger.debug(f"{nginx_buffer.decode(errors='ignore')}")
-        logger.debug(f"{request_whole.decode(errors='ignore')}")
+        logger.warning(f"2a: {nginx_buffer.decode(errors='ignore')}")
+        logger.warning(f"2b: {request_whole.decode(errors='ignore')}")
         httpHeaders = self.parse_headers(nginx_socket, nginx_buffer)
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
