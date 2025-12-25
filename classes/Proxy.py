@@ -123,6 +123,7 @@ class Proxy:
                     elif fd == upstream_socket.fileno():
                         logger.debug('case 2')
                         data = upstream_socket.recv(8192)
+                        logger.debug(f'rec {len(data)} bytes from upstream: {data}')
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
