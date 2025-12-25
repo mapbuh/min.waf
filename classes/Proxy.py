@@ -288,7 +288,7 @@ class Proxy:
             rts.banned_ips[ip] = time.time()
 
     def log(self, request_whole: bytes) -> None:
-        if self.config.config.getboolean("log", "requests"):
+        if not self.config.config.getboolean("log", "requests"):
             return
         logger = logging.getLogger("min.waf")
         logger.debug(f"{request_whole[:self.config.config.getint('main', 'max_inspect_size')].decode(errors='ignore')}")
