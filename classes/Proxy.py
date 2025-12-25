@@ -154,6 +154,7 @@ class Proxy:
                             p.modify(upstream_socket, select.POLLIN)
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
                         sent = nginx_socket.send(upstream_buffer)
+                        logger.debug(f'Sent {sent} bytes to nginx: {upstream_buffer}')
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
