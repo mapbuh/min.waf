@@ -115,12 +115,6 @@ class Proxy:
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
                         data = upstream_socket.recv(8192)
-                        if not data:
-                            p.unregister(upstream_socket.fileno())
-                            upstream_socket.close()
-                            break
-                        upstream_buffer += data
-                        p.modify(nginx_socket, select.POLLOUT)
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
@@ -130,6 +124,7 @@ class Proxy:
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
+                                data = None
                                 logger = logging.getLogger("min.waf")
                                 logger.warning(f"{httpHeaders.ip} banned; headers_with_status detected")
                                 logger.warning(self.rts.banned_ips)
@@ -138,6 +133,13 @@ class Proxy:
                                 else:
                                     upstream_socket.close()
                                     nginx_socket.close()
+                        if not data:
+                            p.unregister(upstream_socket.fileno())
+                            upstream_socket.close()
+                            break
+                        upstream_buffer += data
+                        p.modify(nginx_socket, select.POLLOUT)
+
                 elif event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
