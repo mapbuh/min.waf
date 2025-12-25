@@ -83,6 +83,7 @@ class Proxy:
             request_whole: bytes,
             request_clean_upto: int,
     ) -> None:
+        logger = logging.getLogger("min.waf")
         response_status: int | None = None
         response_whole: bytes = b''
         p = select.epoll()
@@ -105,6 +106,7 @@ class Proxy:
                         data = nginx_socket.recv(8192)
                         if not data:
                             p.unregister(nginx_socket.fileno())
+                            logger.debug("Nginx socket closed the connection 1")
                             nginx_socket.close()
                             if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                                 self.log(request_whole)
@@ -133,6 +135,7 @@ class Proxy:
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
+                            logger.debug("Nginx socket closed the connection 2")
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
                             break
@@ -151,6 +154,7 @@ class Proxy:
                             p.modify(nginx_socket, select.POLLIN)
                 elif event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
+                        logger.debug("Nginx socket closed the connection 3")
                         p.unregister(nginx_socket.fileno())
                         nginx_socket.close()
                     elif fd == upstream_socket.fileno():
@@ -158,6 +162,7 @@ class Proxy:
                         upstream_socket.close()
 
     def only_read(self, nginx_socket: socket.socket, nginx_buffer: bytes, request_whole: bytes) -> None:
+        logger = logging.getLogger("min.waf")
         p = select.epoll()
         p.register(nginx_socket, select.POLLIN)
         while True:
@@ -169,6 +174,7 @@ class Proxy:
                     if fd == nginx_socket.fileno():
                         data = nginx_socket.recv(8192)
                         if not data:
+                            logger.debug("Nginx socket closed the connection 4")
                             nginx_socket.close()
                             break
                         nginx_buffer += data
@@ -176,6 +182,7 @@ class Proxy:
                             request_whole += data
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(request_whole)
+                                logger.debug("Nginx socket closed the connection 5")
                                 nginx_socket.close()
                                 break
                 if event & (select.POLLHUP | select.POLLERR):
