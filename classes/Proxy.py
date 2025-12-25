@@ -124,6 +124,7 @@ class Proxy:
                             logger.warning(f"Response first line: {first_line}")
                             _, response_status_str, _ = first_line.split(' ', 2)
                             logger.warning(f"Response status str: {response_status_str}")
+                            response_status = int(response_status_str)
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(str(data), self.rts, self.config)
