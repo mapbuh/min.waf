@@ -13,7 +13,8 @@ class Checks:
     def headers(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
         logger = logging.getLogger("min.waf")
         if httpHeaders.ip in rts.banned_ips.keys():
-            logger.info(f"{httpHeaders.ip} banned; already banned")
+            if config.config.getboolean('log', 'bans'):
+                logger.info(f"{httpHeaders.ip} banned; already banned")
             return False
         if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip, httpHeaders.ua):
             return True
@@ -73,6 +74,8 @@ class Checks:
         dirty_data = buffer[dirty_data_from:]
         for signature in config.harmful_patterns():
             if signature.encode().lower() in dirty_data.lower():
+                logger = logging.getLogger("min.waf")
+                logger.info(f"Harmful signature detected in content: {signature}")
                 return False
         clean_upto = len(buffer)
         return True
