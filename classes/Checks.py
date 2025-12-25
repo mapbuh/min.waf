@@ -15,8 +15,10 @@ class Checks:
         if httpHeaders.ip in rts.banned_ips.keys():
             if config.config.getboolean('log', 'bans'):
                 logger.info(f"{httpHeaders.ip} banned; already banned")
+            httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip, httpHeaders.ua):
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
             if (
@@ -24,16 +26,20 @@ class Checks:
                 and config.config.getboolean('log', 'bots')
             ):
                 logger.info(f"{httpHeaders.ip} {httpHeaders.ua} bot whitelist match found")
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if Bots.good_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
                 logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
+            httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if Bots.bad_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'bots'):
                 logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
+            httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if (
             config.host_has_trigger(httpHeaders.host)
@@ -44,13 +50,16 @@ class Checks:
                 httpHeaders.http_status
             )
         ):
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if config.config.getboolean("main", "inspect_packets"):
             for signature in config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
                     logger.info(f"Harmful signature detected in header: {signature}")
+                    httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
         return True
 
@@ -58,6 +67,7 @@ class Checks:
     def headers_with_status(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
         from classes.Nginx import Nginx
         if Nginx.process_http_request(config, rts, httpHeaders) == Nginx.STATUS_BAN:
+            httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         return True
 
