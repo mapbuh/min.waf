@@ -98,7 +98,7 @@ class Proxy:
         while True:
             if nginx_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                 break
-            events = p.poll()  # Returns list of (fd, event_type) tuples
+            events = p.poll()
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
@@ -135,6 +135,8 @@ class Proxy:
                             if not self.config.mode_honeypot:
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
+                                if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                                    self.log(request_whole)
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
