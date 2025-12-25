@@ -112,12 +112,12 @@ class Proxy:
                         request_whole += data
                         if not Checks.content(self.config, request_whole, request_clean_upto):
                             self.ban(str(data), self.rts, self.config)
-                        p.modify(upstream_socket, select.POLLIN | select.POLLOUT)
+                        p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
                         data = upstream_socket.recv(8192)
                         logger.warning("Read from upstream_socket" + data.decode(errors='ignore'))
                         upstream_buffer += data
-                        p.modify(nginx_socket, select.POLLIN | select.POLLOUT)
+                        p.modify(nginx_socket, select.POLLOUT)
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
@@ -134,7 +134,7 @@ class Proxy:
                                 else:
                                     upstream_socket.close()
                                     nginx_socket.close()
-                if event & select.POLLOUT:
+                elif event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
                         logger.warning("Wrote to upstream_socket " + nginx_buffer[:sent].decode(errors='ignore'))
@@ -147,7 +147,7 @@ class Proxy:
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
-                if event & (select.POLLHUP | select.POLLERR):
+                elif event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
                         logger.warning("Closing nginx_socket due to HUP or ERR")
                         nginx_socket.close()
