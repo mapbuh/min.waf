@@ -103,6 +103,7 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
+                        logger.debug('case 1')
                         data = nginx_socket.recv(8192)
                         if not data:
                             p.unregister(nginx_socket.fileno())
@@ -120,6 +121,7 @@ class Proxy:
                                 self.log(request_whole)
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
+                        logger.debug('case 2')
                         data = upstream_socket.recv(8192)
                         if not response_status:
                             response_whole += data
@@ -137,11 +139,12 @@ class Proxy:
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
-                            logger.debug("Nginx socket closed the connection 2")
+                            logger.debug("upstream socket closed the connection 2")
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
                 if event & select.POLLOUT:
+                    logger.debug('case 3')
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
                         nginx_buffer = nginx_buffer[sent:]
@@ -153,6 +156,7 @@ class Proxy:
                         if len(upstream_buffer) == 0:
                             p.modify(nginx_socket, select.POLLIN)
                 if event & (select.POLLHUP | select.POLLERR):
+                    logger.debug('case 4')
                     if fd == nginx_socket.fileno():
                         logger.debug("Nginx socket closed the connection 3")
                         p.unregister(nginx_socket.fileno())
