@@ -70,8 +70,6 @@ class Proxy:
                     data = nginx_socket.recv(8192)
                     buffer += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
-                logger = logging.getLogger("min.waf")
-                logger.warning(f"1a: {buffer.decode(errors='ignore')}")
                 epoll.unregister(nginx_socket.fileno())
                 break
         return buffer
