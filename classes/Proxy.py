@@ -131,13 +131,13 @@ class Proxy:
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
                                 self.log(request_whole)
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
                                 data = None
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
                             logger.debug("Nginx socket closed the connection 2")
-                            p.unregister(nginx_socket.fileno())
-                            nginx_socket.close()
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
