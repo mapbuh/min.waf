@@ -83,6 +83,7 @@ class Proxy:
             request_whole: bytes,
             request_clean_upto: int,
     ) -> None:
+        logger = logging.getLogger("min.waf")
         response_status: int | None = None
         response_whole: bytes = b''
         p = select.epoll()
@@ -102,6 +103,7 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
+                        logger.debug("Receiving data from Nginx")
                         data = nginx_socket.recv(8192)
                         if not data:
                             p.unregister(nginx_socket.fileno())
@@ -118,6 +120,7 @@ class Proxy:
                                 self.log(request_whole)
                         p.modify(upstream_socket, select.POLLOUT)
                     elif fd == upstream_socket.fileno():
+                        logger.debug("Receiving data from upstream")
                         data = upstream_socket.recv(8192)
                         if not response_status:
                             response_whole += data
@@ -140,11 +143,13 @@ class Proxy:
                         p.modify(nginx_socket, select.POLLOUT)
                 if event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
+                        logger.debug("Sending data to upstream")
                         sent = upstream_socket.send(nginx_buffer)
                         nginx_buffer = nginx_buffer[sent:]
                         if len(nginx_buffer) == 0:
                             p.modify(upstream_socket, select.POLLIN)
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
+                        logger.debug("Sending data to Nginx")
                         sent = nginx_socket.send(upstream_buffer)
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
@@ -155,9 +160,11 @@ class Proxy:
                                 p.modify(nginx_socket, select.POLLIN)
                 if event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
+                        logger.debug("Nginx socket closed the connection")
                         p.unregister(nginx_socket.fileno())
                         nginx_socket.close()
                     elif fd == upstream_socket.fileno():
+                        logger.debug("Upstream socket closed the connection")
                         p.unregister(upstream_socket.fileno())
                         upstream_socket.close()
 
