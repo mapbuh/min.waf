@@ -90,7 +90,6 @@ class IpTables:
         if ip_address in rts.banned_ips:
             rts.banned_ips[ip_address] = time.time()
             return
-        rts.bans += 1
         rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([

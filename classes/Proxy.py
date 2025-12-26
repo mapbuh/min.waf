@@ -305,6 +305,7 @@ class Proxy:
         rts: RunTimeStats,
         config: Config
     ) -> None:
+        rts.bans += 1
         if config.config.get('main', 'ban_method') == 'iptables':
             IpTables.ban(ip, rts, config)
         else:
