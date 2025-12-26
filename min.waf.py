@@ -17,7 +17,7 @@ def main(
     logger = logging.getLogger('min.waf')
     logger.setLevel(logging.DEBUG)
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(logging.DEBUG)
     chformatter = logging.Formatter('%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     ch.setFormatter(chformatter)
     # add the handlers to logger
