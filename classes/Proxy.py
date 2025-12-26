@@ -144,7 +144,7 @@ class Proxy:
                             break
                         upstream_buffer += data
                         p.modify(nginx_socket, select.POLLOUT)
-                if event & select.POLLOUT:
+                elif event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
                         nginx_buffer = nginx_buffer[sent:]
@@ -159,7 +159,7 @@ class Proxy:
                                 nginx_socket.close()
                             else:
                                 p.modify(nginx_socket, select.POLLIN)
-                if event & (select.POLLHUP | select.POLLERR):
+                elif event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
                         p.unregister(nginx_socket.fileno())
                         nginx_socket.close()
