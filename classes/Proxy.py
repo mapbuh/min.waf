@@ -146,7 +146,7 @@ class Proxy:
                             httpHeaders.http_status = int(response_status_str)
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
-                                self.log(httpHeaders, request_whole)
+                                self.log(httpHeaders, request_whole, force=True)
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
                                 data = None
@@ -198,10 +198,14 @@ class Proxy:
     ) -> None:
         p = select.epoll()
         p.register(nginx_socket, select.POLLIN)
+        bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
         while True:
+            if time.time() > bail:
+                nginx_socket.close()
+                break
             if nginx_socket.fileno() == -1:
                 break
-            events = p.poll()  # Returns list of (fd, event_type) tuples
+            events = p.poll(1)  # Returns list of (fd, event_type) tuples
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
