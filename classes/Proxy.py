@@ -311,4 +311,4 @@ class Proxy:
             data = request_whole.decode(errors='ignore').split("\r\n\r\n", 1)[1]
             if len(data) >= 1:
                 with open(self.config.config.get('log', 'contents'), 'a+') as f:
-                    f.write(request_whole.decode(errors='ignore') + "\n\n")
+                    f.write(data + "\n===\n")
