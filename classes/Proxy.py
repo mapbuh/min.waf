@@ -118,9 +118,20 @@ class Proxy:
                         nginx_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
-                            clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
+                            clean, request_clean_upto = Checks.content(
+                                self.config,
+                                httpHeaders,
+                                request_whole,
+                                request_clean_upto
+                            )
                             if not clean:
                                 self.ban(str(data), self.rts, self.config)
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
+                                self.log(httpHeaders, request_whole, force=True)
+                                break
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(httpHeaders, request_whole)
                         p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
@@ -279,7 +290,6 @@ class Proxy:
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
-        
         clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
         if not clean:
             forward = False
