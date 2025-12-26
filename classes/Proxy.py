@@ -151,7 +151,12 @@ class Proxy:
                         if len(nginx_buffer) == 0:
                             p.modify(upstream_socket, select.POLLIN)
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
-                        sent = nginx_socket.send(upstream_buffer)
+                        try:
+                            sent = nginx_socket.send(upstream_buffer)
+                        except BrokenPipeError:
+                            p.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
+                            break
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             if upstream_socket.fileno() == -1:
