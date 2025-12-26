@@ -153,7 +153,7 @@ class Proxy:
                     elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
                         try:
                             sent = nginx_socket.send(upstream_buffer)
-                        except BrokenPipeError:
+                        except ConnectionResetError:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
                             break
