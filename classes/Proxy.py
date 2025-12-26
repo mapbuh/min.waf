@@ -106,22 +106,24 @@ class Proxy:
                     if fd == nginx_socket.fileno():
                         try:
                             data = nginx_socket.recv(Proxy.buffer_size)
-                        except ConnectionResetError:
+                        except (ConnectionResetError, BrokenPipeError):
                             data = None
                         if not data:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
-                            if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-                                self.log(httpHeaders, request_whole)
+                            p.unregister(upstream_socket.fileno())
+                            upstream_socket.close()
+                            self.log(httpHeaders, request_whole, force=True)
                             break
                         nginx_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
-                            if not Checks.content(self.config, httpHeaders, request_whole, request_clean_upto):
+                            clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
+                            if not clean:
                                 self.ban(str(data), self.rts, self.config)
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(httpHeaders, request_whole)
-                        p.modify(upstream_socket, select.POLLOUT)
+                        p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
                     elif fd == upstream_socket.fileno():
                         data = upstream_socket.recv(Proxy.buffer_size)
                         if not response_status:
@@ -147,7 +149,7 @@ class Proxy:
                             break
                         upstream_buffer += data
                         if nginx_socket.fileno() != -1:
-                            p.modify(nginx_socket, select.POLLOUT)
+                            p.modify(nginx_socket, select.POLLOUT | select.POLLIN)
                 elif event & select.POLLOUT:
                     if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
                         sent = upstream_socket.send(nginx_buffer)
@@ -277,7 +279,9 @@ class Proxy:
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
-        if not Checks.content(self.config, httpHeaders, request_whole, request_clean_upto):
+        
+        clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
+        if not clean:
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
         if not forward and not self.config.mode_honeypot:
@@ -311,9 +315,12 @@ class Proxy:
         else:
             rts.banned_ips[ip] = time.time()
 
-    def log(self, httpHeaders: HttpHeaders, request_whole: bytes) -> None:
+    def log(self, httpHeaders: HttpHeaders, request_whole: bytes, force: bool = False) -> None:
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:
             return
+        if httpHeaders.logged:
+            return
+        httpHeaders.logged = True
         if self.config.config.get('log', 'requests'):
             with open(self.config.config.get('log', 'requests'), 'a+') as f:
                 f.write(f"{httpHeaders.path}\n")

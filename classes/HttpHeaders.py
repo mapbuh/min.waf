@@ -33,3 +33,4 @@ class HttpHeaders:
         self.http_status = http_status
         self.ts = int(req_ts or time.time())
         self.status: int = self.STATUS_NEUTRAL
+        self.logged: bool = False

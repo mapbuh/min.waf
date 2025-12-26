@@ -69,11 +69,11 @@ class Checks:
         return True
 
     @staticmethod
-    def content(config: Config, httpHeaders: HttpHeaders, buffer: bytes, clean_upto: int) -> bool:
+    def content(config: Config, httpHeaders: HttpHeaders, buffer: bytes, clean_upto: int) -> tuple[bool, int]:
         if config.config.get('main', 'inspect_packets') == 'False':
-            return True
+            return True, clean_upto
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
-            return True
+            return True, clean_upto
         # Inspect only the new data since last clean point
         dirty_data_from: int = clean_upto - config.longest_harmful_pattern() + 1
         if dirty_data_from < 0:
@@ -84,9 +84,9 @@ class Checks:
                 logger = logging.getLogger("min.waf")
                 logger.info(f"Harmful signature detected in content: {signature}")
                 httpHeaders.status = HttpHeaders.STATUS_BAD
-                return False
+                return False, clean_upto
         clean_upto = len(buffer)
-        return True
+        return True, clean_upto
 
     @staticmethod
     def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:
