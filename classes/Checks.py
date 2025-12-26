@@ -21,11 +21,8 @@ class Checks:
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
-            if (
-                config.config.getboolean('log', 'whitelist')
-                and config.config.getboolean('log', 'bots')
-            ):
-                logger.info(f"{httpHeaders.ip} {httpHeaders.ua} bot whitelist match found")
+            if config.config.getboolean('log', 'bot_whitelist'):
+                logger.info(f"{httpHeaders.ip} bot whitelist match found")
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if Bots.good_bot(config, httpHeaders.ua):
@@ -37,7 +34,7 @@ class Checks:
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if Bots.bad_bot(config, httpHeaders.ua):
-            if config.config.getboolean('log', 'bots'):
+            if config.config.getboolean('log', 'bad_bots'):
                 logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
