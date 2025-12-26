@@ -29,7 +29,7 @@ class Checks:
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if Bots.good_bot(config, httpHeaders.ua):
-            if config.config.getboolean('log', 'bots') and config.config.getboolean('log', 'whitelist'):
+            if config.config.getboolean('log', 'good_bots'):
                 logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
