@@ -22,7 +22,7 @@ class Config:
 
     @property
     def mode_honeypot(self) -> bool:
-        return self.config.get('main', 'ban_method') == 'internal' and self.config.getboolean('log', 'requests')
+        return self.config.get('main', 'ban_method') == 'internal' and bool(self.config.get('log', 'requests'))
 
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]

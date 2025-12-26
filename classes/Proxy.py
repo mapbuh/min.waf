@@ -302,8 +302,6 @@ class Proxy:
             rts.banned_ips[ip] = time.time()
 
     def log(self, httpHeaders: HttpHeaders, request_whole: bytes) -> None:
-        if not self.config.config.getboolean("log", "requests"):
-            return
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:
             return
         if self.config.config.get('log', 'requests'):
