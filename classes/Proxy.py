@@ -308,5 +308,7 @@ class Proxy:
             with open(self.config.config.get('log', 'requests'), 'a+') as f:
                 f.write(f"{httpHeaders.path}\n")
         if self.config.config.get('log', 'contents'):
-            with open(self.config.config.get('log', 'contents'), 'a+') as f:
-                f.write(request_whole.decode(errors='ignore') + "\n\n")
+            data = request_whole.decode(errors='ignore').split("\r\n\r\n", 1)[1]
+            if len(data) >= 1:
+                with open(self.config.config.get('log', 'contents'), 'a+') as f:
+                    f.write(request_whole.decode(errors='ignore') + "\n\n")
