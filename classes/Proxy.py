@@ -201,6 +201,7 @@ class Proxy:
         bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
         while True:
             if time.time() > bail:
+                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
                 nginx_socket.close()
                 break
             if nginx_socket.fileno() == -1:
@@ -218,6 +219,7 @@ class Proxy:
                             request_whole += data
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(httpHeaders, request_whole)
+                                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
                                 nginx_socket.close()
                                 break
                 if event & (select.POLLHUP | select.POLLERR):
