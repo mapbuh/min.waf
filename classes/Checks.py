@@ -13,7 +13,7 @@ class Checks:
     def headers(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
         logger = logging.getLogger("min.waf")
         if httpHeaders.ip in rts.banned_ips.keys():
-            if config.config.getboolean('log', 'bans'):
+            if False and config.config.getboolean('log', 'bans'):
                 logger.info(f"{httpHeaders.ip} banned; already banned")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
