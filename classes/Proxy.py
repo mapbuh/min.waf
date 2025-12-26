@@ -306,5 +306,10 @@ class Proxy:
             return
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:
             return
-        logger = logging.getLogger("min.waf")
-        logger.debug(f"{request_whole[:self.config.config.getint('main', 'max_inspect_size')].decode(errors='ignore')}")
+        if self.config.config.get('log', 'requests'):
+            with open(self.config.config.get('log', 'requests'), 'a') as f:
+                f.write(f"{httpHeaders.ip} {httpHeaders.method} "
+                        f"{httpHeaders.host}{httpHeaders.path} {httpHeaders.ua}\n")
+        if self.config.config.get('log', 'contents'):
+            with open(self.config.config.get('log', 'contents'), 'a') as f:
+                f.write(request_whole.decode(errors='ignore') + "\n\n")
