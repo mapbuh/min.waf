@@ -104,7 +104,10 @@ class Proxy:
             for fd, event in events:
                 if event & select.POLLIN:
                     if fd == nginx_socket.fileno():
-                        data = nginx_socket.recv(Proxy.buffer_size)
+                        try:
+                            data = nginx_socket.recv(Proxy.buffer_size)
+                        except ConnectionResetError:
+                            data = None
                         if not data:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
