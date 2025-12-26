@@ -116,24 +116,13 @@ class BotWhitelist:
         return whitelist_bots_list
 
     def check(self, user_agent: str, ip: str) -> bool:
-        logger: logging.Logger = logging.getLogger("min.waf")
         if user_agent in self.whitelist_cache:
             if ip in self.whitelist_cache[user_agent]:
-                if (
-                    self.config.config.getboolean('log', 'whitelist')
-                    and self.config.config.getboolean('log', 'bots')
-                ):
-                    logger.info(f"{ip} bot whitelist cache hit for bot {self.whitelist_cache[user_agent][ip]}")
                 return True
         for bot, networks in self.whitelist.items():
             if bot.lower() in user_agent.lower():
                 for net in networks:
                     if ipaddress.ip_address(ip) in net:
-                        if (
-                            self.config.config.getboolean('log', 'whitelist')
-                            and self.config.config.getboolean('log', 'bots')
-                        ):
-                            logger.info(f"{ip} bot whitelist match in {net} for bot {bot}")
                         self.whitelist_cache.setdefault(user_agent, {})[ip] = bot
                         return True
         return False
