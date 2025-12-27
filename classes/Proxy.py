@@ -111,8 +111,9 @@ class Proxy:
                         if not data:
                             p.unregister(nginx_socket.fileno())
                             nginx_socket.close()
-                            p.unregister(upstream_socket.fileno())
-                            upstream_socket.close()
+                            if upstream_socket.fileno() != -1:
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
                             self.log(httpHeaders, request_whole, force=True)
                             break
                         nginx_buffer += data
