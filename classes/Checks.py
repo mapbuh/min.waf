@@ -52,7 +52,6 @@ class Checks:
         if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
-        logger.info(f"Inspecting headers for {httpHeaders.ip}")
         if config.config.getboolean("main", "inspect_packets"):
             for signature in config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
