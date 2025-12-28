@@ -1,7 +1,7 @@
 [pytest]
 addopts = ["--import-mode=importlib"]
 pythonpath = ["."]
-log_cli = false
+log_cli = true
 log_cli_level = "DEBUG"
 log_format = "[%(levelname)s]: %(message)s"
 log_cli_format = "[%(levelname)s]: %(message)s"

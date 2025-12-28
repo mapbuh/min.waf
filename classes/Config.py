@@ -5,7 +5,7 @@ import logging
 import os
 import random
 
-from classes import Utils
+from classes.Utils import Utils
 
 
 class Config:
@@ -116,12 +116,19 @@ class BotWhitelist:
         return whitelist_bots_list
 
     def check(self, user_agent: str, ip: str) -> bool:
+        logger = logging.getLogger("min.waf")
+        logger.info(f"Checking bot whitelist for UA: {user_agent}, IP: {ip}")
+        logger.info(f"Current whitelist cache: {self.whitelist_cache}")
         if user_agent in self.whitelist_cache:
             if ip in self.whitelist_cache[user_agent]:
                 return True
+        else:
+            logger.info(f"No cache entry for UA: {user_agent}")
         for bot, networks in self.whitelist.items():
+            logger.info(f"Checking against bot: {bot}")
             if bot.lower() in user_agent.lower():
                 for net in networks:
+                    logger.info(f"Checking IP {ip} against network {net}")
                     if ipaddress.ip_address(ip) in net:
                         self.whitelist_cache.setdefault(user_agent, {})[ip] = bot
                         return True

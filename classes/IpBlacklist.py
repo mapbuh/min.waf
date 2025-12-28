@@ -3,7 +3,7 @@ import random
 import time
 from classes.Config import Config
 from functools import lru_cache
-from classes import Utils
+from classes.Utils import Utils
 
 
 class IpBlacklist:

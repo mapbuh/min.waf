@@ -25,7 +25,7 @@ class KnownAttacks:
         if httpHeaders.http_status not in [404, 500]:
             return False
         for attack in config.getlist('main', 'known_attacks'):
-            if attack.lower() in httpHeaders.req.lower():
+            if attack.lower() in httpHeaders.path.lower():
                 logger.info(f"{httpHeaders.ip} banned; Known attack detected: {httpHeaders.req}")
                 return True
         return False
