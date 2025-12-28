@@ -6,6 +6,8 @@ from classes.HttpHeaders import HttpHeaders
 from classes.RunTimeStats import RunTimeStats
 from classes.MinWaf import MinWaf
 from classes.IpBlacklist import IpBlacklist
+from classes.IpData import IpData
+from classes.ExpiringList import ExpiringList
 
 
 @pytest.fixture
@@ -141,3 +143,102 @@ def test_content(
     content = b"<script></script><script>exec()</script>"
     assert Checks.content(config, http_headers, content, 10) == (True, 10)
     monkeypatch.setitem(config.config['main'], 'inspect_packets', 'True')
+
+
+def test_bad_http_stats(
+        monkeypatch: pytest.MonkeyPatch,
+        config: Config,
+        rts: RunTimeStats,
+        http_headers: HttpHeaders
+) -> None:
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    # one normal log line
+    ip_data.log_lines.append(time.time(), HttpHeaders(
+        ip=http_headers.ip,
+        http_status=200,
+        path="/path1"
+    ))
+    assert Checks.bad_http_stats(config, http_headers, ip_data) is False
+
+    # multiple normal log lines
+    for i in range(2, 20):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=200,
+            path=f"/path{i}"
+        ))
+    assert Checks.bad_http_stats(config, http_headers, ip_data) is False
+
+    # multiple bad log lines on same path
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    for i in range(1, 20):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=500,
+            path="/path1"
+        ))
+    assert Checks.bad_http_stats(config, http_headers, ip_data) is False
+
+    # multiple bad log lines on different paths
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    for i in range(1, 20):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=500,
+            path=f"/path{i}"
+        ))
+    assert Checks.bad_http_stats(config, http_headers, ip_data) is True
+
+    # 60 bad, 40 good, 50 ignored
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    for i in range(1, 61):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=500,
+            path=f"/badpath{i}"
+        ))
+    for i in range(1, 41):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=200,
+            path=f"/goodpath{i}"
+        ))
+    for i in range(1, 51):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            http_status=301,
+            path=f"/ignoredpath{i}"
+        ))
+    assert Checks.bad_http_stats(config, http_headers, ip_data) is True
