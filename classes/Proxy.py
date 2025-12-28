@@ -69,6 +69,9 @@ class Proxy:
             for _, event in events:
                 if event & select.EPOLLIN:
                     data = nginx_socket.recv(Proxy.buffer_size)
+                    if not data:
+                        epoll.unregister(nginx_socket.fileno())
+                        return buffer
                     buffer += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
                 epoll.unregister(nginx_socket.fileno())

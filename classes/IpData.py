@@ -49,6 +49,14 @@ class IpData:
         return sum(self._log_lines.get_values_by_key("upstream_response_time"))
 
     @property
+    def used_time90(self) -> float:
+        times = sorted(self._log_lines.get_values_by_key("upstream_response_time"))
+        if not times:
+            return 0.0
+        index_90 = int(len(times) * 0.9) - 1
+        return sum(times[:index_90 + 1])
+
+    @property
     def avg_time(self) -> float:
         if self.request_count == 0:
             return 0.0

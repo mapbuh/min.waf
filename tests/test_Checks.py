@@ -242,3 +242,22 @@ def test_bad_http_stats(
             path=f"/ignoredpath{i}"
         ))
     assert Checks.bad_http_stats(config, http_headers, ip_data) is True
+
+def test_bad_steal_ratio(
+        monkeypatch: pytest.MonkeyPatch,
+        config: Config,
+        rts: RunTimeStats,
+        http_headers: HttpHeaders
+) -> None:
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    ip_data.log_lines.append(time.time(), HttpHeaders(
+        ip=http_headers.ip,
+        upstream_response_time=0.1,
