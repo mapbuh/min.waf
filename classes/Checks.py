@@ -12,41 +12,32 @@ class Checks:
     @staticmethod
     def headers(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
         logger = logging.getLogger("min.waf")
-        logger.info(f"Checking banned_ips for {httpHeaders.ip}")
         if httpHeaders.ip in rts.banned_ips.keys():
             if False and config.config.getboolean('log', 'bans'):
                 logger.info(f"{httpHeaders.ip} banned; already banned")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
-        logger.info(f"Checking whitelist for {httpHeaders.ip}")
         if rts.ip_whitelist.is_whitelisted(httpHeaders.host, httpHeaders.ip):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
-        logger.info(f"Checking bot whitelist for {httpHeaders.ip}")
         if config.bot_whitelist.check(httpHeaders.ua, httpHeaders.ip):
             if config.config.getboolean('log', 'bot_whitelist'):
                 logger.info(f"{httpHeaders.ip} bot whitelist match found")
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
-        logger.info(f"Checking good bots for {httpHeaders.ip}")
         if Bots.good_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'good_bots'):
                 logger.info(f"{httpHeaders.ip} good bot: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
-        logger.info(f"Checking ip blacklist for {httpHeaders.ip}")
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
-        logger.info(f"Checking bad bots for {httpHeaders.ip}")
         if Bots.bad_bot(config, httpHeaders.ua):
             if config.config.getboolean('log', 'bad_bots'):
                 logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
-        logger.info(f"Checking host triggers for {httpHeaders.ip}")
-        logger.debug(f"Host triggers: {config.whitelist_triggers()}")
-        logger.debug(f"Host has trigger: {config.host_has_trigger(httpHeaders.host)}")
         if (
             config.host_has_trigger(httpHeaders.host)
             and rts.ip_whitelist.is_trigger(
@@ -58,14 +49,12 @@ class Checks:
         ):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
-        logger.info(f"Checking static files for {httpHeaders.ip}")
         if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         logger.info(f"Inspecting headers for {httpHeaders.ip}")
         if config.config.getboolean("main", "inspect_packets"):
             for signature in config.harmful_patterns():
-                logger.debug(f"Checking signature in headers: {signature}")
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
                     logger.info(f"Harmful signature detected in header: {signature}")
                     httpHeaders.status = HttpHeaders.STATUS_BAD
