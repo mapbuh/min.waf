@@ -148,6 +148,7 @@ class Proxy:
                             _, response_status_str, _ = first_line.split(' ', 2)
                             response_status = int(response_status_str)
                             httpHeaders.http_status = int(response_status_str)
+                            httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
                                 self.log(httpHeaders, request_whole, force=True)

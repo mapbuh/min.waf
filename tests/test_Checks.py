@@ -243,6 +243,7 @@ def test_bad_http_stats(
         ))
     assert Checks.bad_http_stats(config, http_headers, ip_data) is True
 
+
 def test_bad_steal_ratio(
         monkeypatch: pytest.MonkeyPatch,
         config: Config,
@@ -258,6 +259,39 @@ def test_bad_steal_ratio(
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
+    for i in range(1, 20):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            upstream_response_time=i/100,
+            ts=time.time()-i
+        ))
     ip_data.log_lines.append(time.time(), HttpHeaders(
         ip=http_headers.ip,
-        upstream_response_time=0.1,
+        upstream_response_time=10,
+        ts=time.time()
+    ))
+    ip_data.log_lines.append(time.time(), HttpHeaders(
+        ip=http_headers.ip,
+        upstream_response_time=20,
+        ts=time.time()
+    ))
+    assert ip_data.used_time90 < 5
+    assert Checks.bad_steal_ratio(config, ip_data) is False
+
+    ip_data = IpData(
+        config,
+        http_headers.ip,
+        'ip',
+        {
+            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+            "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+        }
+    )
+    for i in range(1, 20):
+        ip_data.log_lines.append(time.time(), HttpHeaders(
+            ip=http_headers.ip,
+            upstream_response_time=4,
+            ts=time.time()-i
+        ))
+    assert ip_data.used_time90 > 5
+    assert Checks.bad_steal_ratio(config, ip_data) is False
