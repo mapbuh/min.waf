@@ -71,6 +71,7 @@ class Proxy:
                     data = nginx_socket.recv(Proxy.buffer_size)
                     if not data:
                         epoll.unregister(nginx_socket.fileno())
+                        nginx_socket.close()
                         return buffer
                     buffer += data
             if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
@@ -296,6 +297,8 @@ class Proxy:
 
         nginx_socket.setblocking(False)
         nginx_buffer = self.read_headers(nginx_socket, nginx_buffer)
+        if nginx_socket.fileno() == -1:
+            return
         request_whole = nginx_buffer
         httpHeaders = self.parse_headers(nginx_socket, nginx_buffer)
         if not Checks.headers(httpHeaders, self.config, self.rts):
