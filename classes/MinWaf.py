@@ -5,7 +5,7 @@ import os
 import signal
 import sys
 import time
-# import yappi
+import yappi
 
 from classes.Bots import Bots
 from classes.Config import Config
@@ -19,9 +19,8 @@ class MinWaf:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.rts: RunTimeStats = RunTimeStats(config)
-        # if self.config.config.getboolean("dev", "profiling"):
-        #    yappi.start()
-        #    pass
+        if self.config.config.getboolean("dev", "profiling"):
+            yappi.start()
         self.lockfile_init()
         IpTables.init(self.config)
         self.rts.ip_blacklist.load()
@@ -102,9 +101,8 @@ class MinWaf:
         self.lockfile_remove()
         IpTables.clear(self.config)
         if self.config.config.getboolean("dev", "profiling"):
-            # yappi.stop()
-            # yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
-            pass
+            yappi.stop()
+            yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
         logger.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:
