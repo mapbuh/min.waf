@@ -41,6 +41,7 @@ class Proxy:
         try:
             while True:
                 conn, addr = s.accept()
+                self.rts.all += 1
                 t = threading.Thread(target=self.proxy_handle_client, args=(conn, addr))
                 t.start()
                 all_threads.append(t)

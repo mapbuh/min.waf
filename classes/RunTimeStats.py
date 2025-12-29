@@ -74,3 +74,4 @@ class RunTimeStats:
         self.bans: int = 0
         self.inter_domain: IDS = IDS()
         self.ip_blacklist: IpBlacklist = IpBlacklist(config)
+        self.all: int = 0
