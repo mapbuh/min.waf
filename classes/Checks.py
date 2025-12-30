@@ -1,10 +1,12 @@
 import logging
 import urllib.parse
 
+from classes.Bots import Bots
 from classes.Config import Config
+from classes.ExpiringList import ExpiringList
 from classes.HttpHeaders import HttpHeaders
 from classes.IpData import IpData
-from classes.Bots import Bots
+from classes.KnownAttacks import KnownAttacks
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -38,17 +40,6 @@ class Checks:
                 logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
-        if (
-            config.host_has_trigger(httpHeaders.host)
-            and rts.ip_whitelist.is_trigger(
-                httpHeaders.host,
-                httpHeaders.ip,
-                httpHeaders.path,
-                httpHeaders.http_status or 0
-            )
-        ):
-            httpHeaders.status = HttpHeaders.STATUS_GOOD
-            return True
         if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
@@ -62,14 +53,32 @@ class Checks:
 
     @staticmethod
     def headers_with_status(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
-        from classes.Nginx import Nginx
-        if Nginx.process_http_request(config, rts, httpHeaders) == Nginx.STATUS_BAN:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False
+        if (
+            config.host_has_trigger(httpHeaders.host)
+            and rts.ip_whitelist.is_trigger(
+                httpHeaders.host,
+                httpHeaders.ip,
+                httpHeaders.path,
+                httpHeaders.http_status or 0
+            )
+        ):
+            httpHeaders.status = HttpHeaders.STATUS_GOOD
+            return True
+        if not Checks.process_http_request(config, rts, httpHeaders):
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         return True
 
     @staticmethod
     def content(config: Config, httpHeaders: HttpHeaders, buffer: bytes, clean_upto: int) -> tuple[bool, int]:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True, len(buffer)
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False, clean_upto
         if config.config.get('main', 'inspect_packets') == 'False':
             return True, clean_upto
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
@@ -119,3 +128,73 @@ class Checks:
         # TODO - make it LRU cache
         if httpHeaders.http_status != 200:
             rts.inter_domain.add(httpHeaders.path, httpHeaders.host, httpHeaders.http_status or 0)
+
+    @staticmethod
+    def process_http_request(
+        config: Config,
+        rts: RunTimeStats,
+        httpHeaders: HttpHeaders,
+    ) -> bool:
+        ua_data: IpData | None = None
+        url_data: IpData | None = None
+
+        if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
+            return True
+        ip_data = rts.ip_stats.get(httpHeaders.ip)
+        if ip_data is None:
+            ip_data = IpData(
+                config,
+                httpHeaders.ip,
+                'ip',
+                {
+                    "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                    "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                }
+            )
+        ip_data.log_lines.append(httpHeaders.ts, httpHeaders)
+
+        if config.config.getboolean('main', 'url_stats'):
+            url_data = rts.url_stats.get(httpHeaders.path)
+            if url_data is None:
+                url_data = IpData(
+                    config,
+                    httpHeaders.path,
+                    'path',
+                    {
+                        "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                        "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                    }
+                )
+            url_data.log_lines.append(httpHeaders.ts, httpHeaders)
+
+        if config.config.getboolean('main', 'ua_stats'):
+            ua_data = rts.ua_stats.get(httpHeaders.ua)
+            if ua_data is None:
+                ua_data = IpData(
+                    config,
+                    httpHeaders.ua,
+                    'user_agent',
+                    {
+                        "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                        "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
+                    }
+                )
+            ua_data.log_lines.append(httpHeaders.ts, httpHeaders)
+
+        if Checks.bad_http_stats(config, httpHeaders, ip_data):
+            return False
+        if Checks.bad_steal_ratio(config, ip_data):
+            return False
+        if KnownAttacks.is_known(config, httpHeaders):
+            return False
+        Checks.log_probes(httpHeaders, rts)
+
+        rts.ip_stats.create(ts=httpHeaders.ts, key=httpHeaders.ip, value=ip_data)
+        if config.config.getboolean('main', 'url_stats') and url_data is not None:
+            rts.url_stats.create(ts=httpHeaders.ts,
+                                 key=httpHeaders.path, value=url_data)
+        if config.config.getboolean('main', 'ua_stats') and ua_data is not None:
+            rts.ua_stats.create(ts=httpHeaders.ts,
+                                key=httpHeaders.ua, value=ua_data)
+
+        return True
