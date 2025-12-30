@@ -1,4 +1,3 @@
-from functools import lru_cache
 import ipaddress
 import logging
 from classes.ExpiringList import ExpiringList
@@ -14,11 +13,8 @@ class IpWhitelist:
 
     def load(self) -> None:
         self.whitelist.clear()
-        self.is_whitelisted.cache_clear()
-        self.is_trigger.cache_clear()
 
-    @lru_cache(maxsize=1024)
-    def is_whitelisted(self, host: str, ip: str, user_agent: str) -> bool:
+    def is_whitelisted(self, host: str, ip: str) -> bool:
         logger = logging.getLogger("min.waf")
         for net in self.config.getlist('main', 'whitelist'):
             if ipaddress.ip_address(ip) in ipaddress.ip_network(net):
@@ -36,8 +32,6 @@ class IpWhitelist:
             logger.warning(f"Whitelist checking {ip} {err=}")
         return False
 
-    @lru_cache(maxsize=1024)
-    # not passing log_line to make cache effective
     def is_trigger(self, host: str, ip: str, path: str, http_status: int) -> bool:
         logger = logging.getLogger("min.waf")
         for trigger in self.config.whitelist_host_triggers(host):
@@ -46,7 +40,6 @@ class IpWhitelist:
                     self.whitelist[host] = ExpiringList(
                         expiration_time=self.config.config.getint('main', 'whitelist_expiration'))
                 self.whitelist[host].append(None, ip)
-                self.is_whitelisted.cache_clear()
                 logger.info(
                     f"{ip} whitelisted due to trigger "
                     f"on path {host}{path} with status "

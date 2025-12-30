@@ -2,7 +2,6 @@ import subprocess
 import time
 from classes.Config import Config
 from classes.RunTimeStats import RunTimeStats
-from classes.ExpiringList import ExpiringList
 
 
 class IpTables:
@@ -87,12 +86,10 @@ class IpTables:
         ip_address: str,
         rts: RunTimeStats,
         config: Config,
-        raw_lines: ExpiringList[str] | None = None
     ) -> None:
         if ip_address in rts.banned_ips:
             rts.banned_ips[ip_address] = time.time()
             return
-        rts.bans += 1
         rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([
@@ -170,4 +167,3 @@ class IpTables:
                         "--dport", "443",
                         "-j", "DROP",
                     ])
-                # logger.debug(f"{ip} unbanned after {config.ban_time}s")

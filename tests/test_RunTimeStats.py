@@ -2,10 +2,12 @@ import pytest
 from classes.RunTimeStats import RunTimeStats, IDS, IDSPath, IDSHost
 from classes.Config import Config
 
+
 def test_idshost_init():
     host = IDSHost()
     assert isinstance(host.http_statuses, dict)
     assert host.http_statuses == {}
+
 
 def test_idspath_methods():
     path = IDSPath()
@@ -21,15 +23,16 @@ def test_idspath_methods():
     lines = path.lines()
     assert all(f"line{i}" in lines for i in range(3))
 
+
 def test_ids_add_and_repr():
     ids = IDS()
-    ids.add("/path", "host", 404, "raw line")
+    ids.add("/path", "host", 404)
     assert "/path" in ids.path
     assert "host" in ids.path["/path"].hosts
     assert 404 in ids.path["/path"].hosts["host"].http_statuses
-    assert "raw line" in ids.path["/path"].hosts["host"].http_statuses[404]
     rep = repr(ids)
     assert "path: /path host: host status: 404" in rep
+
 
 def test_runtimestats_init_and_blacklist(monkeypatch: pytest.MonkeyPatch):
     config = Config("test.conf")

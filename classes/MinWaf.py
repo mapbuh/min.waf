@@ -5,7 +5,7 @@ import os
 import signal
 import sys
 import time
-# import yappi
+import yappi
 
 from classes.Bots import Bots
 from classes.Config import Config
@@ -19,9 +19,8 @@ class MinWaf:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
         self.rts: RunTimeStats = RunTimeStats(config)
-        # if self.config.config.getboolean("dev", "profiling"):
-        #    yappi.start()
-        #    pass
+        if self.config.config.getboolean("dev", "profiling"):
+            yappi.start()
         self.lockfile_init()
         IpTables.init(self.config)
         self.rts.ip_blacklist.load()
@@ -37,7 +36,7 @@ class MinWaf:
         self.proxy: Proxy = Proxy(self.config, self.rts, self.every_10_seconds, self.every_1_hour)
 
     def every_10_seconds(self) -> None:
-        IpTables.unban_expired(self.config, self.rts)
+        self.unban_expired(self.config, self.rts)
         self.rts.ip_blacklist.load()
 
     def every_1_hour(self) -> None:
@@ -58,9 +57,6 @@ class MinWaf:
                 "config_longest_harmful_pattern": self.config.longest_harmful_pattern.cache_info(),
                 "config_whitelist_host_triggers": self.config.whitelist_host_triggers.cache_info(),
                 "config_whitelist_triggers": self.config.whitelist_triggers.cache_info(),
-                "ip_blacklist_is_ip_blacklisted": self.rts.ip_blacklist.is_ip_blacklisted.cache_info(),
-                "ip_whitelist_is_trigger": self.rts.ip_whitelist.is_trigger.cache_info(),
-                "ip_whitelist_is_whitelisted": self.rts.ip_whitelist.is_whitelisted.cache_info(),
             }
             for key, value in info.items():
                 logger.debug(
@@ -104,9 +100,8 @@ class MinWaf:
         self.lockfile_remove()
         IpTables.clear(self.config)
         if self.config.config.getboolean("dev", "profiling"):
-            # yappi.stop()
-            # yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
-            pass
+            yappi.stop()
+            yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
         logger.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:
@@ -133,3 +128,20 @@ class MinWaf:
             self.lockfile_remove()
         with open(self.config.config.get("main", "lockfile"), "w") as f:
             f.write(str(os.getpid()))
+
+    @staticmethod
+    def unban_expired(
+        config: Config,
+        rts: RunTimeStats
+    ) -> None:
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.unban_expired(config, rts)
+            return
+        ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
+        current_time = time.time()
+        ips_to_unban = [
+            ip for ip, ban_time in rts.banned_ips.items()
+            if (current_time - ban_time) > ban_duration
+        ]
+        for ip in ips_to_unban:
+            del rts.banned_ips[ip]

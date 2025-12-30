@@ -5,7 +5,7 @@ import logging
 import os
 import random
 
-from classes import Utils
+from classes.Utils import Utils
 
 
 class Config:
@@ -19,6 +19,10 @@ class Config:
         self.config = configparser.ConfigParser()
         self.config.read(minwaf_path + "/defaults.conf")
         self.config.read(self.filename)
+
+    @property
+    def mode_honeypot(self) -> bool:
+        return self.config.get('main', 'ban_method') == 'internal' and bool(self.config.get('log', 'requests'))
 
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]
@@ -106,31 +110,19 @@ class BotWhitelist:
                                 whitelist_bots_list[user_agent].append(ipaddress.ip_network(ip_prefix))
                             except ValueError:
                                 logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
-                    logger.debug(f"Loaded {len(prefixes)} IP ranges for bot {section}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
         self.whitelist_cache = {}
         return whitelist_bots_list
 
     def check(self, user_agent: str, ip: str) -> bool:
-        logger: logging.Logger = logging.getLogger("min.waf")
         if user_agent in self.whitelist_cache:
             if ip in self.whitelist_cache[user_agent]:
-                if (
-                    self.config.config.getboolean('log', 'whitelist')
-                    and self.config.config.getboolean('log', 'bots')
-                ):
-                    logger.debug(f"{ip} bot whitelist cache hit for bot {self.whitelist_cache[user_agent][ip]}")
                 return True
         for bot, networks in self.whitelist.items():
             if bot.lower() in user_agent.lower():
                 for net in networks:
                     if ipaddress.ip_address(ip) in net:
-                        if (
-                            self.config.config.getboolean('log', 'whitelist')
-                            and self.config.config.getboolean('log', 'bots')
-                        ):
-                            logger.debug(f"{ip} bot whitelist match in {net} for bot {bot}")
                         self.whitelist_cache.setdefault(user_agent, {})[ip] = bot
                         return True
         return False

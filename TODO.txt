@@ -2,6 +2,7 @@
 - fork on external blacklist update
 - honeypot mode. Instead of banning with ipchains, ban manually and log all requests from banned ips
 - per host settings
+- should I make config and rts and singletons
 
 add these attacks:
 37.46.196.22 - - [17/Dec/2025:05:52:09 +0200] "GET /index.php?%ADd+cgi.force_redirect%3D0+%ADd+cgi.redirect_status_env%3D0+%ADd+fastcgi.impersonate%3D1+%ADd+open_basedir%3D+%ADd+disable_functions%3D+%ADd+auto_p

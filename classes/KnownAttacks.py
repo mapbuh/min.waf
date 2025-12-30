@@ -14,18 +14,18 @@ Ideally we'll identify new patterns by:
 
 
 import logging
-from classes.LogLine import LogLine
 from classes.Config import Config
+from classes.HttpHeaders import HttpHeaders
 
 
 class KnownAttacks:
     @staticmethod
-    def is_known(config: Config, log_line: LogLine) -> bool:
+    def is_known(config: Config, httpHeaders: HttpHeaders) -> bool:
         logger = logging.getLogger("min.waf")
-        if log_line.http_status not in [404, 500]:
+        if httpHeaders.http_status not in [404, 500]:
             return False
         for attack in config.getlist('main', 'known_attacks'):
-            if attack.lower() in log_line.req.lower():
-                logger.info(f"{log_line.ip} banned; Known attack detected: {log_line.req}")
+            if attack.lower() in httpHeaders.path.lower():
+                logger.info(f"{httpHeaders.ip} banned; Known attack detected: {httpHeaders.req}")
                 return True
         return False

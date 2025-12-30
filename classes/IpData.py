@@ -1,12 +1,12 @@
 from typing import Any
 from classes.ExpiringList import ExpiringList
-from classes.LogLine import LogLine
 from classes.Config import Config
+from classes.HttpHeaders import HttpHeaders
 
 
 class IpData:
     _raw_lines: ExpiringList[str]
-    _log_lines: ExpiringList[LogLine]
+    _log_lines: ExpiringList[HttpHeaders]
 
     def __init__(self, config: Config, key: str, key_name: str, data: dict[str, Any]):
         self.config = config
@@ -23,20 +23,21 @@ class IpData:
         return self._raw_lines
 
     @property
-    def log_lines(self) -> ExpiringList[LogLine]:
+    def log_lines(self) -> ExpiringList[HttpHeaders]:
         assert self._log_lines is not None
         return self._log_lines
 
     @property
     def min_ts(self) -> float:
-        return min(self._log_lines.get_values_by_key("req_ts") or [0.0])
+        return min(self._log_lines.get_values_by_key("ts") or [0.0])
 
     @property
     def max_ts(self) -> float:
-        return max(self._log_lines.get_values_by_key("req_ts") or [0.0])
+        return max(self._log_lines.get_values_by_key("ts") or [0.0])
 
     @property
     def avail_time(self) -> int:
+        '''Available time window in seconds'''
         res = self.max_ts - self.min_ts
         return int(res) if res > 0 else 1
 
@@ -47,6 +48,15 @@ class IpData:
     @property
     def total_time(self) -> float:
         return sum(self._log_lines.get_values_by_key("upstream_response_time"))
+
+    @property
+    def used_time90(self) -> float:
+        '''Total upstream response time at 90th percentile'''
+        times = sorted(self._log_lines.get_values_by_key("upstream_response_time"))
+        if not times:
+            return 0.0
+        index_90 = int(len(times) * 0.9) - 1
+        return sum(times[:index_90 + 1])
 
     @property
     def avg_time(self) -> float:
@@ -73,13 +83,15 @@ class IpData:
 
     @property
     def steal_time(self) -> float:
-        return self.avail_time - self.total_time
+        '''Time difference between available time and 90th percentile used time'''
+        return self.avail_time - self.used_time90
 
     @property
     def steal_ratio(self) -> float:
+        '''Steal ratio as percentage of used time90 over available time'''
         if self.avail_time == 0:
             return 0.0
-        return (self.total_time / self.avail_time) * 100.0
+        return (self.used_time90 / self.avail_time) * 100.0
 
     @property
     def score(self) -> float:

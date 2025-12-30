@@ -4,17 +4,18 @@ import select
 import socket
 import threading
 import time
-import urllib.parse
+from typing import Callable
 
+from classes.Checks import Checks
 from classes.Config import Config
+from classes.HttpHeaders import HttpHeaders
 from classes.IpTables import IpTables
-from classes.LogLine import LogLine
-from classes.Nginx import Nginx
 from classes.RunTimeStats import RunTimeStats
 
 
 class Proxy:
-    from typing import Callable
+
+    buffer_size: int = 8192  # 8 KB
 
     def __init__(
         self,
@@ -40,6 +41,7 @@ class Proxy:
         try:
             while True:
                 conn, addr = s.accept()
+                self.rts.all += 1
                 t = threading.Thread(target=self.proxy_handle_client, args=(conn, addr))
                 t.start()
                 all_threads.append(t)
@@ -60,222 +62,295 @@ class Proxy:
             if s:
                 s.close()
 
-    def proxy_handle_client(self, nginx_socket: socket.socket, addr: tuple[str, int]) -> None:
-        logger = logging.getLogger("min.waf")
-        waf_dest: str = ''
-        header_end: bool = False
-        upstream_socket: socket.socket | None = None
-        log_line_data: dict[str, str | int | float] = {
-            'method': '',
-            'path': '',
-            'proto': '',
-            'host': '',
-            'ip': '',
-            'req_ts': time.time(),
-            'upstream_response_time': 1.23,
-            'logged': False,
-        }
-        buffer: bytes = b''
-        buff_size = 8192
-        data: bytes = b''
-        request_whole: bytes = b''
-        # response_whole: bytes = b''
-        request_clean_upto: int = 0
-        # response_clean_upto: int = 0
+    def read_headers(self, nginx_socket: socket.socket, buffer: bytes) -> bytes:
+        epoll = select.epoll()
+        epoll.register(nginx_socket.fileno(), select.EPOLLIN)
         while True:
-            try:
-                data = nginx_socket.recv(buff_size)
-                if self.config.config.getboolean("main", "inspect_packets"):
-                    request_whole += data
-            except ConnectionResetError:
-                nginx_socket.close()
-            if not data:
-                # eof
+            events = epoll.poll()
+            for _, event in events:
+                if event & select.EPOLLIN:
+                    data = nginx_socket.recv(Proxy.buffer_size)
+                    if not data:
+                        epoll.unregister(nginx_socket.fileno())
+                        nginx_socket.close()
+                        return buffer
+                    buffer += data
+            if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
+                epoll.unregister(nginx_socket.fileno())
                 break
-            buffer += data
-            if (buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1) and len(buffer) > 1:
-                break
-        buffer_decoded = buffer.decode(errors='ignore')
-        host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
-        if host_match:
-            log_line_data['host'] = host_match.group(1).strip().split(':')[0]
-        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
-        if ip_match:
-            log_line_data['ip'] = ip_match.group(1).strip()
-            if log_line_data['ip'] in self.rts.banned_ips.keys():
-                # logger.info(f"Connection from banned IP {log_line_data['ip']} rejected")
-                nginx_socket.close()
-                return
-        ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
-        if ua_match:
-            log_line_data['ua'] = ua_match.group(2).strip()
-        referer_match = re.search(r'^(Referer|referer): (.*)$', buffer_decoded, re.MULTILINE)
-        if referer_match:
-            log_line_data['referer'] = referer_match.group(2).strip()
-        match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE)
-        if match and waf_dest == '':
-            waf_dest = match.group(2).strip()
-            upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            host, sep, port_str = waf_dest.partition(':')
-            port = int(port_str) if sep else 80
-            try:
-                upstream_socket.connect((host, port))
-            except ConnectionRefusedError:
-                logger.info(f"Connection to WAF destination {waf_dest} refused")
-                nginx_socket.close()
-                return
-            if self.is_safe(
-                request_whole,
-                request_clean_upto,
-            ):
-                upstream_socket.sendall(buffer)
-            else:
-                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
-                logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
-                nginx_socket.close()
-                upstream_socket.close()
-                return
-            # Efficiently extract the first line (request line) without splitlines()
-            first_line_end = buffer_decoded.find('\n')
-            if first_line_end == -1:
-                request_line = buffer_decoded.strip()
-            else:
-                request_line = buffer_decoded[:first_line_end].strip()
-            try:
-                log_line_data['method'], log_line_data['path'], log_line_data['proto'] = request_line.split(' ', 2)
-                log_line_data['req'] = f"{log_line_data['host']}{log_line_data['path']}"
-            except ValueError:
-                logging.warning(f"Malformed request line: '{request_line}' from {addr}")
-                log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
-                log_line = LogLine(log_line_data)
-                log_line_data['logged'] = True
-                Nginx.process_line(self.config, self.rts, log_line, "")
-                nginx_socket.close()
-                upstream_socket.close()
-                return
-            if not self.is_safe_header(log_line_data['path']):
-                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
-                logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
-                nginx_socket.close()
-                upstream_socket.close()
-                return
-        else:
-            log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
-            log_line = LogLine(log_line_data)
-            log_line_data['logged'] = True
-            Nginx.process_line(self.config, self.rts, log_line, "")
-            nginx_socket.close()
-            return
-        header_end = False
-        http_status: str = '200'
+        return buffer
+
+    def forward(
+            self,
+            httpHeaders: HttpHeaders,
+            nginx_socket: socket.socket,
+            nginx_buffer: bytes,
+            upstream_socket: socket.socket,
+            upstream_buffer: bytes,
+            request_whole: bytes,
+            request_clean_upto: int,
+    ) -> None:
+        response_status: int | None = None
+        response_whole: bytes = b''
         p = select.epoll()
-        p.register(nginx_socket, select.POLLIN)
-        p.register(upstream_socket, select.POLLIN)
+        if len(upstream_buffer) > 0:
+            p.register(nginx_socket, select.POLLIN | select.POLLOUT)
+        else:
+            p.register(nginx_socket, select.POLLIN)
+        if len(nginx_buffer) > 0:
+            p.register(upstream_socket, select.POLLIN | select.POLLOUT)
+        else:
+            p.register(upstream_socket, select.POLLIN)
+
         while True:
             if nginx_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                 break
-            events = p.poll()  # Returns list of (fd, event_type) tuples
-            for fd, _ in events:
-                if fd == nginx_socket.fileno():
-                    sock = nginx_socket
-                elif fd == upstream_socket.fileno():
-                    sock = upstream_socket
-                else:
-                    continue
-                try:
-                    data = sock.recv(buff_size)
-                    if self.config.config.getboolean("main", "inspect_packets"):
-                        if sock == nginx_socket:
+            events = p.poll()
+            for fd, event in events:
+                if event & select.POLLIN:
+                    if fd == nginx_socket.fileno():
+                        try:
+                            data = nginx_socket.recv(Proxy.buffer_size)
+                        except (ConnectionResetError, BrokenPipeError):
+                            data = None
+                        if not data:
+                            p.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
+                            if upstream_socket.fileno() != -1:
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
+                            self.log(httpHeaders, request_whole, force=True)
+                            break
+                        nginx_buffer += data
+                        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
-                        # else:
-                        #     response_whole += data
-                    if not data:
-                        # connection closed
-                        nginx_socket.close()
-                        upstream_socket.close()
-                        break
-                    else:
-                        if sock == nginx_socket:
-                            if self.is_safe(
+                            clean, request_clean_upto = Checks.content(
+                                self.config,
+                                httpHeaders,
                                 request_whole,
-                                request_clean_upto,
-                            ):
-                                upstream_socket.sendall(data)
-                            else:
-                                IpTables.ban(str(log_line_data['ip']), self.rts, self.config)
-                                logger.info(f"{log_line_data['ip']} banned; harmful signature detected in request")
+                                request_clean_upto
+                            )
+                            if not clean:
+                                self.ban(str(data), self.rts, self.config)
+                                p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
+                                p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
-                                return
-                        else:
-                            if not header_end:
-                                headers = data.partition(b'\r\n\r\n')[0].decode(errors='ignore')
-                                _, http_status, _ = headers.splitlines()[0].split(' ', 2)
-                                header_end = True
-                                try:
-                                    log_line_data['http_status'] = int(http_status)
-                                except ValueError:
-                                    logger.warning(f"Malformed HTTP status: '{http_status}' in response from {addr}")
-                                    log_line_data['http_status'] = 0
-                                log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
-                                log_line = LogLine(log_line_data)
-                                log_line_data['logged'] = True
-                                if (Nginx.process_line(self.config, self.rts, log_line, "") == Nginx.STATUS_BANNED):
-                                    # just enough for iptables to register the ban and annoy the attacker a bit
-                                    time.sleep(3)
-                                    # and confuse them, in case it hasn't propagated yet
-                                    try:
-                                        nginx_socket.sendall(b"HTTP/1.1 200 OK\r\n\r\n")
-                                    except (BrokenPipeError, OSError):
-                                        pass
-                                    nginx_socket.close()
-                                    upstream_socket.close()
-                                    return
-                            try:
-                                nginx_socket.sendall(data)
-                            except (BrokenPipeError, OSError):
-                                nginx_socket.close()
-                                upstream_socket.close()
+                                self.log(httpHeaders, request_whole, force=True)
                                 break
-                except ConnectionResetError:
-                    nginx_socket.close()
-                    upstream_socket.close()
-                    break
-        if not log_line_data['logged']:
-            log_line_data['upstream_response_time'] = time.time() - float(log_line_data['req_ts'])
-            log_line = LogLine(log_line_data)
-            Nginx.process_line(self.config, self.rts, log_line, "")
+                            if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
+                                self.log(httpHeaders, request_whole)
+                        p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
+                    elif fd == upstream_socket.fileno():
+                        data = upstream_socket.recv(Proxy.buffer_size)
+                        if not response_status:
+                            response_whole += data
+                        if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
+                            first_line = response_whole.decode(errors='ignore').splitlines()[0]
+                            _, response_status_str, _ = first_line.split(' ', 2)
+                            response_status = int(response_status_str)
+                            httpHeaders.http_status = int(response_status_str)
+                            httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
+                            if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
+                                self.ban(httpHeaders.ip, self.rts, self.config)
+                                self.log(httpHeaders, request_whole, force=True)
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
+                                data = None
+                                break
+                        if not data:
+                            p.unregister(upstream_socket.fileno())
+                            upstream_socket.close()
+                            if len(upstream_buffer) == 0 and nginx_socket.fileno() != -1:
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
+                            break
+                        upstream_buffer += data
+                        if nginx_socket.fileno() != -1:
+                            p.modify(nginx_socket, select.POLLOUT | select.POLLIN)
+                elif event & select.POLLOUT:
+                    if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
+                        sent = upstream_socket.send(nginx_buffer)
+                        nginx_buffer = nginx_buffer[sent:]
+                        if len(nginx_buffer) == 0:
+                            p.modify(upstream_socket, select.POLLIN)
+                    elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
+                        try:
+                            sent = nginx_socket.send(upstream_buffer)
+                        except (ConnectionResetError, BrokenPipeError):
+                            p.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
+                            break
+                        upstream_buffer = upstream_buffer[sent:]
+                        if len(upstream_buffer) == 0:
+                            if upstream_socket.fileno() == -1:
+                                p.unregister(nginx_socket.fileno())
+                                nginx_socket.close()
+                            else:
+                                p.modify(nginx_socket, select.POLLIN)
+                elif event & (select.POLLHUP | select.POLLERR):
+                    if fd == nginx_socket.fileno():
+                        p.unregister(nginx_socket.fileno())
+                        nginx_socket.close()
+                    elif fd == upstream_socket.fileno():
+                        p.unregister(upstream_socket.fileno())
+                        upstream_socket.close()
+
+    def only_read(
+        self,
+        httpHeaders: HttpHeaders,
+        nginx_socket: socket.socket,
+        nginx_buffer: bytes,
+        request_whole: bytes
+    ) -> None:
+        p = select.epoll()
+        p.register(nginx_socket, select.POLLIN)
+        bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
+        while True:
+            if time.time() > bail:
+                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                nginx_socket.close()
+                break
+            if nginx_socket.fileno() == -1:
+                break
+            events = p.poll(1)  # Returns list of (fd, event_type) tuples
+            for fd, event in events:
+                if event & select.POLLIN:
+                    if fd == nginx_socket.fileno():
+                        data = nginx_socket.recv(Proxy.buffer_size)
+                        if not data:
+                            nginx_socket.close()
+                            break
+                        nginx_buffer += data
+                        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                            request_whole += data
+                            if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
+                                self.log(httpHeaders, request_whole)
+                                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                                nginx_socket.close()
+                                break
+                if event & (select.POLLHUP | select.POLLERR):
+                    if fd == nginx_socket.fileno():
+                        nginx_socket.close()
+        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+            self.log(httpHeaders, request_whole)
+
+    def parse_headers(self, nginx_socket: socket.socket, buffer: bytes) -> HttpHeaders:
+        buffer_decoded = buffer.decode(errors='ignore')
+        host: str = ''
+        ip: str = ''
+        ua: str = ''
+        referer: str = ''
+        upstream_host: str = ''
+        upstream_port: int = 0
+        host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
+        if host_match:
+            host = host_match.group(1).strip().split(':')[0]
+        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
+        if ip_match:
+            ip = ip_match.group(1).strip()
+        ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
+        if ua_match:
+            ua = ua_match.group(2).strip()
+        referer_match = re.search(r'^(Referer|referer): (.*)$', buffer_decoded, re.MULTILINE)
+        if referer_match:
+            referer = referer_match.group(2).strip()
+        match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE)
+        if match:
+            waf_dest = match.group(2).strip()
+            upstream_host, sep, upstream_port_str = waf_dest.partition(':')
+            upstream_port = int(upstream_port_str) if sep else 80
+
+        method, path, proto = buffer_decoded.splitlines()[0].split(' ', 2)
+        return HttpHeaders(
+            host=host,
+            ip=ip,
+            ua=ua,
+            referer=referer,
+            upstream_host=upstream_host,
+            upstream_port=upstream_port,
+            method=method,
+            path=path,
+            proto=proto,
+        )
+
+    def connect_upstream(self, httpHeaders: HttpHeaders) -> socket.socket:
+        upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            upstream_socket.connect((httpHeaders.upstream_host, httpHeaders.upstream_port))
+        except ConnectionRefusedError:
+            logger = logging.getLogger("min.waf")
+            logger.info(f"Connection to {httpHeaders.upstream_host}:{httpHeaders.upstream_port} refused")
+            upstream_socket.close()
+        return upstream_socket
+
+    def proxy_handle_client(
+            self,
+            nginx_socket: socket.socket,
+            addr: tuple[str, int]
+    ) -> None:
+        nginx_buffer: bytes = b''
+        upstream_buffer: bytes = b''
+        upstream_socket: socket.socket | None = None
+        forward: bool = True
+        request_whole: bytes = b''
+        request_clean_upto: int = 0
+
+        nginx_socket.setblocking(False)
+        nginx_buffer = self.read_headers(nginx_socket, nginx_buffer)
+        if nginx_socket.fileno() == -1:
+            return
+        request_whole = nginx_buffer
+        httpHeaders = self.parse_headers(nginx_socket, nginx_buffer)
+        if not Checks.headers(httpHeaders, self.config, self.rts):
+            forward = False
+            self.ban(str(httpHeaders.ip), self.rts, self.config)
+        clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
+        if not clean:
+            forward = False
+            self.ban(str(httpHeaders.ip), self.rts, self.config)
+        if not forward and not self.config.mode_honeypot:
+            nginx_socket.close()
+            return
+        if forward:
+            upstream_socket = self.connect_upstream(httpHeaders)
+            upstream_socket.setblocking(False)
+            self.forward(
+                httpHeaders,
+                nginx_socket,
+                nginx_buffer,
+                upstream_socket,
+                upstream_buffer,
+                request_whole,
+                request_clean_upto
+            )
+        elif self.config.mode_honeypot:
+            self.only_read(httpHeaders, nginx_socket, nginx_buffer, request_whole)
         return
 
-    def is_safe(
-            self,
-            request_whole: bytes,
-            request_clean_upto: int,
-    ) -> bool:
-        logger = logging.getLogger("min.waf")
-        if self.config.config.getboolean("main", "inspect_packets"):
-            if request_clean_upto >= self.config.config.getint("main", "max_inspect_size"):
-                return True
-            # Inspect only the new data since last clean point
-            dirty_data_from: int = request_clean_upto - self.config.longest_harmful_pattern() + 1
-            if dirty_data_from < 0:
-                dirty_data_from = 0
-            dirty_data = request_whole[dirty_data_from:]
-            for signature in self.config.harmful_patterns():
-                if signature.encode().lower() in dirty_data.lower():
-                    logger.debug(f"Harmful signature detected: {signature}")
-                    logger.debug(f"Dirty data: {request_whole}")
-                    # Drop the connection by not sending data upstream
-                    return False
-            request_clean_upto = len(request_whole)
-        return True
+    @staticmethod
+    def ban(
+        ip: str,
+        rts: RunTimeStats,
+        config: Config
+    ) -> None:
+        rts.bans += 1
+        if config.config.get('main', 'ban_method') == 'iptables':
+            IpTables.ban(ip, rts, config)
+        else:
+            rts.banned_ips[ip] = time.time()
 
-    def is_safe_header(self, path: str) -> bool:
-        logger = logging.getLogger("min.waf")
-        if self.config.config.getboolean("main", "inspect_packets"):
-            for signature in self.config.harmful_patterns():
-                if signature.lower() in urllib.parse.unquote(path).lower():
-                    logger.debug(f"Harmful signature detected in header: {signature}")
-                    logger.debug(f"Dirty data: {path}")
-                    return False
-        return True
+    def log(self, httpHeaders: HttpHeaders, request_whole: bytes, force: bool = False) -> None:
+        if not httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return
+        if httpHeaders.logged:
+            return
+        httpHeaders.logged = True
+        if self.config.config.get('log', 'requests'):
+            with open(self.config.config.get('log', 'requests'), 'a+') as f:
+                f.write(f"{httpHeaders.path}\n")
+        if self.config.config.get('log', 'contents'):
+            data = request_whole.decode(errors='ignore').split("\r\n\r\n", 1)[1]
+            if len(data) >= 1:
+                with open(self.config.config.get('log', 'contents'), 'a+') as f:
+                    f.write(data + "\n===\n")

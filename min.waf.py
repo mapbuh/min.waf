@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import logging
 import click
+import logging
 
 from classes.Config import Config
 from classes.MinWaf import MinWaf
@@ -13,11 +13,15 @@ def main(
     config: str,
 ) -> None:
     configObj: Config = Config(config)
-    logging.basicConfig(
-        format="%(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        level=logging.DEBUG if configObj.config.getboolean("dev", "debug", fallback=False) else logging.INFO,
-    )
+
+    logger = logging.getLogger('min.waf')
+    logger.setLevel(logging.DEBUG)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    chformatter = logging.Formatter('%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    ch.setFormatter(chformatter)
+    # add the handlers to logger
+    logger.addHandler(ch)
     MinWaf(configObj)
 
 

@@ -56,7 +56,7 @@ def test_total_and_avg_time():
     for ll in make_log_lines():
         log_lines.append(None, ll)
     ipd = IpData(Config("test.conf"), "1.2.3.4", "ip", {"log_lines": log_lines})
-    assert ipd.total_time == 3.8
+    assert ipd.used_time == 3.8
     assert ipd.avg_time == 0.76
 
 

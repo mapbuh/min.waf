@@ -52,26 +52,26 @@ class IDS:
                         res += f"path: {path} host: {host} status: {status}\n    line: {line}\n"
         return res
 
-    def add(self, path: str, host: str, http_status: int, raw_line: str) -> None:
+    def add(self, path: str, host: str, http_status: int) -> None:
         if path not in self.path:
             self.path[path] = IDSPath()
         if host not in self.path[path].hosts:
             self.path[path].hosts[host] = IDSHost()
         if http_status not in self.path[path].hosts[host].http_statuses:
             self.path[path].hosts[host].http_statuses[http_status] = []
-        self.path[path].hosts[host].http_statuses[http_status].append(raw_line)
 
 
 class RunTimeStats:
+    banned_ips: dict[str, float] = {}
+
     def __init__(self, config: Config) -> None:
         self.config = config
         self.start_time: float = 0
-        self.lines_parsed: int = 0
         self.ip_whitelist: IpWhitelist = IpWhitelist(config)
-        self.banned_ips: dict[str, float] = {}
         self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.bans: int = 0
         self.inter_domain: IDS = IDS()
         self.ip_blacklist: IpBlacklist = IpBlacklist(config)
+        self.all: int = 0
