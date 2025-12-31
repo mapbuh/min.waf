@@ -275,9 +275,10 @@ class Proxy:
         )
 
     def connect_upstream(self, httpHeaders: HttpHeaders) -> socket.socket:
-        upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
+            upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             upstream_socket.connect((httpHeaders.upstream_host, httpHeaders.upstream_port))
+            upstream_socket.setblocking(False)
         except ConnectionRefusedError:
             logger = logging.getLogger("min.waf")
             logger.info(f"Connection to {httpHeaders.upstream_host}:{httpHeaders.upstream_port} refused")
@@ -314,7 +315,8 @@ class Proxy:
             return
         if forward:
             upstream_socket = self.connect_upstream(httpHeaders)
-            upstream_socket.setblocking(False)
+            if not upstream_socket:
+                return
             self.forward(
                 httpHeaders,
                 nginx_socket,
