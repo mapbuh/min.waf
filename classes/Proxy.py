@@ -315,7 +315,8 @@ class Proxy:
             return
         if forward:
             upstream_socket = self.connect_upstream(httpHeaders)
-            if not upstream_socket:
+            if not upstream_socket or upstream_socket.fileno() == -1:
+                nginx_socket.close()
                 return
             self.forward(
                 httpHeaders,
