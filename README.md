@@ -2,7 +2,7 @@
 
 ## About
 
-min.waf is a simple firewall that will try to detect and ban malicious http requests.
+min.waf is a simple firewall that will try to detect and stop malicious http requests.
 Main goal is to have virtually no false positives and not to disrupt normal operations.
 
 ## Features
