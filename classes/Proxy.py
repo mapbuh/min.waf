@@ -69,7 +69,10 @@ class Proxy:
             events = epoll.poll()
             for _, event in events:
                 if event & select.EPOLLIN:
-                    data = nginx_socket.recv(Proxy.buffer_size)
+                    try:
+                        data = nginx_socket.recv(Proxy.buffer_size)
+                    except (ConnectionResetError, BrokenPipeError):
+                        data = None
                     if not data:
                         epoll.unregister(nginx_socket.fileno())
                         nginx_socket.close()
@@ -274,7 +277,8 @@ class Proxy:
             proto=proto,
         )
 
-    def connect_upstream(self, httpHeaders: HttpHeaders) -> socket.socket:
+    def connect_upstream(self, httpHeaders: HttpHeaders) -> socket.socket | None:
+        upstream_socket = None
         try:
             upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             upstream_socket.connect((httpHeaders.upstream_host, httpHeaders.upstream_port))
@@ -282,7 +286,15 @@ class Proxy:
         except ConnectionRefusedError:
             logger = logging.getLogger("min.waf")
             logger.info(f"Connection to {httpHeaders.upstream_host}:{httpHeaders.upstream_port} refused")
-            upstream_socket.close()
+            if upstream_socket is not None:
+                upstream_socket.close()
+            upstream_socket = None
+        except TimeoutError:
+            logger = logging.getLogger("min.waf")
+            logger.info(f"Connection to {httpHeaders.upstream_host}:{httpHeaders.upstream_port} timed out")
+            if upstream_socket is not None:
+                upstream_socket.close()
+            upstream_socket = None
         return upstream_socket
 
     def proxy_handle_client(
