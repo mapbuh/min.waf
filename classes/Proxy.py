@@ -134,7 +134,7 @@ class Proxy:
                                 request_clean_upto
                             )
                             if not clean:
-                                self.ban(str(data), self.rts, self.config)
+                                self.ban(httpHeaders.ip, self.rts, self.config)
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
                                 p.unregister(upstream_socket.fileno())
