@@ -139,9 +139,12 @@ class MinWaf:
             return
         ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
         current_time = time.time()
-        ips_to_unban = [
-            ip for ip, ban_time in rts.banned_ips.items()
-            if (current_time - ban_time) > ban_duration
-        ]
+        with rts._banned_ips_lock:
+            ips_to_unban = [
+                ip for ip, ban_time in rts.banned_ips.items()
+                if (current_time - ban_time) > ban_duration
+            ]
         for ip in ips_to_unban:
-            del rts.banned_ips[ip]
+            with rts._banned_ips_lock:
+                if ip in rts.banned_ips:
+                    del rts.banned_ips[ip]

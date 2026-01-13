@@ -4,6 +4,7 @@ import select
 import socket
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
 
 from classes.Checks import Checks
@@ -29,26 +30,23 @@ class Proxy:
 
         host = config.config.get("main", "host")
         port = int(config.config.get("main", "port"))
+        max_workers = config.config.getint("main", "max_workers", fallback=200)
+
         s = socket.socket()
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         s.bind((host, port))
         s.listen(1024)
 
-        all_threads: list[threading.Thread] = []
+        executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="proxy-worker")
         refresh_ts: float = time.time()
         logstats_ts: float = time.time()
 
         try:
             while True:
                 conn, addr = s.accept()
-                self.rts.all += 1
-                t = threading.Thread(target=self.proxy_handle_client, args=(conn, addr))
-                t.start()
-                all_threads.append(t)
-                for t in all_threads[:]:
-                    if not t.is_alive():
-                        t.join(1)
-                        all_threads.remove(t)
+                with self.rts._counters_lock:
+                    self.rts.all += 1
+                executor.submit(self.proxy_handle_client, conn, addr)
                 if (time.time() - refresh_ts) > 10:
                     refresh_ts = time.time()
                     cb_10_seconds()
@@ -61,6 +59,7 @@ class Proxy:
         finally:
             if s:
                 s.close()
+            executor.shutdown(wait=True, cancel_futures=False)
 
     def read_headers(self, nginx_socket: socket.socket, buffer: bytes) -> bytes:
         epoll = select.epoll()
@@ -134,7 +133,7 @@ class Proxy:
                                 request_clean_upto
                             )
                             if not clean:
-                                self.ban(str(data), self.rts, self.config)
+                                self.ban(httpHeaders.ip, self.rts, self.config)
                                 p.unregister(nginx_socket.fileno())
                                 nginx_socket.close()
                                 p.unregister(upstream_socket.fileno())
@@ -349,11 +348,13 @@ class Proxy:
         rts: RunTimeStats,
         config: Config
     ) -> None:
-        rts.bans += 1
+        with rts._counters_lock:
+            rts.bans += 1
         if config.config.get('main', 'ban_method') == 'iptables':
             IpTables.ban(ip, rts, config)
         else:
-            rts.banned_ips[ip] = time.time()
+            with rts._banned_ips_lock:
+                rts.banned_ips[ip] = time.time()
 
     def log(self, httpHeaders: HttpHeaders, request_whole: bytes, force: bool = False) -> None:
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:

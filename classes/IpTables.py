@@ -32,10 +32,11 @@ class IpTables:
 
     @staticmethod
     def slow(ip_address: str, config: Config, rts: RunTimeStats):
-        if ip_address in rts.banned_ips:
+        with rts._banned_ips_lock:
+            if ip_address in rts.banned_ips:
+                rts.banned_ips[ip_address] = time.time()
+                return
             rts.banned_ips[ip_address] = time.time()
-            return
-        rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([
                 "ip6tables",
@@ -87,10 +88,11 @@ class IpTables:
         rts: RunTimeStats,
         config: Config,
     ) -> None:
-        if ip_address in rts.banned_ips:
+        with rts._banned_ips_lock:
+            if ip_address in rts.banned_ips:
+                rts.banned_ips[ip_address] = time.time()
+                return
             rts.banned_ips[ip_address] = time.time()
-            return
-        rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([
                 "ip6tables",
@@ -130,9 +132,15 @@ class IpTables:
     @staticmethod
     def unban_expired(config: Config, rts: RunTimeStats) -> None:
         current_time = time.time()
-        for ip in list(rts.banned_ips.keys()):
-            if current_time - rts.banned_ips[ip] > config.config.getint('main', 'ban_time'):
-                del rts.banned_ips[ip]
+        with rts._banned_ips_lock:
+            ips_to_unban = [
+                ip for ip in list(rts.banned_ips.keys())
+                if current_time - rts.banned_ips[ip] > config.config.getint('main', 'ban_time')
+            ]
+        for ip in ips_to_unban:
+            with rts._banned_ips_lock:
+                if ip in rts.banned_ips:
+                    del rts.banned_ips[ip]
                 if ":" in ip:
                     subprocess.run([
                         "ip6tables",
