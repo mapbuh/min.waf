@@ -122,7 +122,7 @@ class Checks:
                 f"t/a: {ip_data.total_time:.2f}/{ip_data.avail_time:.2f} "
                 f"req: {ip_data.request_count} ratio: {ip_data.steal_ratio:.2f}"
             )
-            return False
+            return True
         return False
 
     @staticmethod
