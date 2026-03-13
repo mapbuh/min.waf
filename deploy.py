@@ -8,7 +8,7 @@ import pathlib
 import sys
 import time
 
-SECRET_KEY = '#ffSVv4NohftC~YY'
+SECRET_KEY = os.environ.get('GITEA_WEBHOOK_SECRET', '')
 
 
 def error_log(msg: str) -> None:
@@ -21,6 +21,11 @@ def get_header(name: str) -> str:
 
 
 def main() -> None:
+    # Check secret key is configured
+    if not SECRET_KEY:
+        error_log('FAILED - GITEA_WEBHOOK_SECRET not set')
+        sys.exit(1)
+
     # Check for POST request
     request_method = os.environ.get('REQUEST_METHOD', '')
     if request_method != 'POST':
