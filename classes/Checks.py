@@ -17,7 +17,7 @@ class Checks:
         with rts._banned_ips_lock:
             is_banned = httpHeaders.ip in rts.banned_ips
         if is_banned:
-            if False and config.config.getboolean('log', 'bans'):
+            if config.config.getboolean('log', 'bans'):
                 logger.info(f"{httpHeaders.ip} banned; already banned")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
@@ -81,7 +81,7 @@ class Checks:
             return True, len(buffer)
         if httpHeaders.status == HttpHeaders.STATUS_BAD:
             return False, clean_upto
-        if config.config.get('main', 'inspect_packets') == 'False':
+        if not config.config.getboolean('main', 'inspect_packets'):
             return True, clean_upto
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
             return True, clean_upto

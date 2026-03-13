@@ -1,4 +1,5 @@
 import logging
+import ipaddress
 import re
 import select
 import socket
@@ -250,7 +251,10 @@ class Proxy:
             host = host_match.group(1).strip().split(':')[0]
         ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
         if ip_match:
-            ip = ip_match.group(1).strip()
+            try:
+                ip = str(ipaddress.ip_address(ip_match.group(1).strip()))
+            except ValueError:
+                ip = ''
         ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
         if ua_match:
             ua = ua_match.group(2).strip()
@@ -261,9 +265,15 @@ class Proxy:
         if match:
             waf_dest = match.group(2).strip()
             upstream_host, sep, upstream_port_str = waf_dest.partition(':')
-            upstream_port = int(upstream_port_str) if sep else 80
+            try:
+                p = int(upstream_port_str) if sep else 80
+                upstream_port = p if 1 <= p <= 65535 else 80
+            except ValueError:
+                upstream_port = 80
 
-        method, path, proto = buffer_decoded.splitlines()[0].split(' ', 2)
+        lines = buffer_decoded.splitlines()
+        parts = lines[0].split(' ', 2) if lines else []
+        method, path, proto = parts if len(parts) == 3 else ('', '', '')
         return HttpHeaders(
             host=host,
             ip=ip,
