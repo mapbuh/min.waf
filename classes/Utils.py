@@ -76,8 +76,6 @@ class Utils:
         cache_file: str,
     ) -> None:
         """Fetch a URL and cache the response."""
-        global thread_map
-
         logger = logging.getLogger("min.waf")
         with Utils.lockfile:
             try:
