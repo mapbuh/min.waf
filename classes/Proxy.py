@@ -63,24 +63,24 @@ class Proxy:
             executor.shutdown(wait=True, cancel_futures=False)
 
     def read_headers(self, nginx_socket: socket.socket, buffer: bytes) -> bytes:
-        epoll = select.epoll()
-        epoll.register(nginx_socket.fileno(), select.EPOLLIN)
-        while True:
-            events = epoll.poll()
-            for _, event in events:
-                if event & select.EPOLLIN:
-                    try:
-                        data = nginx_socket.recv(Proxy.buffer_size)
-                    except (ConnectionResetError, BrokenPipeError):
-                        data = None
-                    if not data:
-                        epoll.unregister(nginx_socket.fileno())
-                        nginx_socket.close()
-                        return buffer
-                    buffer += data
-            if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
-                epoll.unregister(nginx_socket.fileno())
-                break
+        with select.epoll() as epoll:
+            epoll.register(nginx_socket.fileno(), select.EPOLLIN)
+            while True:
+                events = epoll.poll()
+                for _, event in events:
+                    if event & select.EPOLLIN:
+                        try:
+                            data = nginx_socket.recv(Proxy.buffer_size)
+                        except (ConnectionResetError, BrokenPipeError):
+                            data = None
+                        if not data:
+                            epoll.unregister(nginx_socket.fileno())
+                            nginx_socket.close()
+                            return buffer
+                        buffer += data
+                if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
+                    epoll.unregister(nginx_socket.fileno())
+                    break
         return buffer
 
     def forward(
@@ -198,6 +198,7 @@ class Proxy:
                     elif fd == upstream_socket.fileno():
                         p.unregister(upstream_socket.fileno())
                         upstream_socket.close()
+        p.close()
 
     def only_read(
         self,
@@ -235,6 +236,7 @@ class Proxy:
                 if event & (select.POLLHUP | select.POLLERR):
                     if fd == nginx_socket.fileno():
                         nginx_socket.close()
+        p.close()
         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
             self.log(httpHeaders, request_whole)
 
