@@ -17,6 +17,7 @@ class ExpiringDict(Generic[T]):
         if ts is None:
             ts = time.time()
         with self._lock:
+            self._expire_unlocked()
             self.data[key] = value
             self.ts[key] = ts
 

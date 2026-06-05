@@ -1,4 +1,5 @@
 import threading
+import time
 
 from classes.IpBlacklist import IpBlacklist
 from classes.IpData import IpData
@@ -42,8 +43,10 @@ class IDSPath:
 
 
 class IDS:
-    def __init__(self) -> None:
+    def __init__(self, expiration_time: int = 3600) -> None:
         self.path: dict[str, IDSPath] = {}
+        self.ts: dict[str, float] = {}
+        self.expiration_time = expiration_time
         self._lock = threading.Lock()
 
     def __repr__(self) -> str:
@@ -56,14 +59,23 @@ class IDS:
                             res += f"path: {path} host: {host} status: {status}\n    line: {line}\n"
         return res
 
+    def _expire_unlocked(self) -> None:
+        current_time = time.time()
+        for key in list(self.ts.keys()):
+            if current_time - self.ts[key] > self.expiration_time:
+                del self.path[key]
+                del self.ts[key]
+
     def add(self, path: str, host: str, http_status: int) -> None:
         with self._lock:
+            self._expire_unlocked()
             if path not in self.path:
                 self.path[path] = IDSPath()
             if host not in self.path[path].hosts:
                 self.path[path].hosts[host] = IDSHost()
             if http_status not in self.path[path].hosts[host].http_statuses:
                 self.path[path].hosts[host].http_statuses[http_status] = []
+            self.ts[path] = time.time()
 
 
 class RunTimeStats:
@@ -75,7 +87,7 @@ class RunTimeStats:
         self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.bans: int = 0
-        self.inter_domain: IDS = IDS()
+        self.inter_domain: IDS = IDS(expiration_time=config.config.getint('main', 'time_frame'))
         self.ip_blacklist: IpBlacklist = IpBlacklist(config)
         self.all: int = 0
         self.banned_ips: dict[str, float] = {}

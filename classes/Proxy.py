@@ -62,32 +62,32 @@ class Proxy:
                 s.close()
             executor.shutdown(wait=True, cancel_futures=False)
 
-    def read_headers(self, nginx_socket: socket.socket, buffer: bytes) -> bytes:
+    def read_headers(self, frontend_socket: socket.socket, buffer: bytes) -> bytes:
         with select.epoll() as epoll:
-            epoll.register(nginx_socket.fileno(), select.EPOLLIN)
+            epoll.register(frontend_socket.fileno(), select.EPOLLIN)
             while True:
                 events = epoll.poll()
                 for _, event in events:
                     if event & select.EPOLLIN:
                         try:
-                            data = nginx_socket.recv(Proxy.buffer_size)
+                            data = frontend_socket.recv(Proxy.buffer_size)
                         except (ConnectionResetError, BrokenPipeError):
                             data = None
                         if not data:
-                            epoll.unregister(nginx_socket.fileno())
-                            nginx_socket.close()
+                            epoll.unregister(frontend_socket.fileno())
+                            frontend_socket.close()
                             return buffer
                         buffer += data
                 if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
-                    epoll.unregister(nginx_socket.fileno())
+                    epoll.unregister(frontend_socket.fileno())
                     break
         return buffer
 
     def forward(
             self,
             httpHeaders: HttpHeaders,
-            nginx_socket: socket.socket,
-            nginx_buffer: bytes,
+            frontend_socket: socket.socket,
+            frontend_buffer: bytes,
             upstream_socket: socket.socket,
             upstream_buffer: bytes,
             request_whole: bytes,
@@ -97,34 +97,34 @@ class Proxy:
         response_whole: bytes = b''
         p = select.epoll()
         if len(upstream_buffer) > 0:
-            p.register(nginx_socket, select.POLLIN | select.POLLOUT)
+            p.register(frontend_socket, select.POLLIN | select.POLLOUT)
         else:
-            p.register(nginx_socket, select.POLLIN)
-        if len(nginx_buffer) > 0:
+            p.register(frontend_socket, select.POLLIN)
+        if len(frontend_buffer) > 0:
             p.register(upstream_socket, select.POLLIN | select.POLLOUT)
         else:
             p.register(upstream_socket, select.POLLIN)
 
         while True:
-            if nginx_socket.fileno() == -1 and upstream_socket.fileno() == -1:
+            if frontend_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                 break
             events = p.poll()
             for fd, event in events:
                 if event & select.POLLIN:
-                    if fd == nginx_socket.fileno():
+                    if fd == frontend_socket.fileno():
                         try:
-                            data = nginx_socket.recv(Proxy.buffer_size)
+                            data = frontend_socket.recv(Proxy.buffer_size)
                         except (ConnectionResetError, BrokenPipeError):
                             data = None
                         if not data:
-                            p.unregister(nginx_socket.fileno())
-                            nginx_socket.close()
+                            p.unregister(frontend_socket.fileno())
+                            frontend_socket.close()
                             if upstream_socket.fileno() != -1:
                                 p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                             self.log(httpHeaders, request_whole, force=True)
                             break
-                        nginx_buffer += data
+                        frontend_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
                             clean, request_clean_upto = Checks.content(
@@ -135,8 +135,8 @@ class Proxy:
                             )
                             if not clean:
                                 self.ban(httpHeaders.ip, self.rts, self.config)
-                                p.unregister(nginx_socket.fileno())
-                                nginx_socket.close()
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
                                 p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                                 self.log(httpHeaders, request_whole, force=True)
@@ -157,44 +157,44 @@ class Proxy:
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                 self.ban(httpHeaders.ip, self.rts, self.config)
                                 self.log(httpHeaders, request_whole, force=True)
-                                p.unregister(nginx_socket.fileno())
-                                nginx_socket.close()
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
                                 data = None
                                 break
                         if not data:
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
-                            if len(upstream_buffer) == 0 and nginx_socket.fileno() != -1:
-                                p.unregister(nginx_socket.fileno())
-                                nginx_socket.close()
+                            if len(upstream_buffer) == 0 and frontend_socket.fileno() != -1:
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
                             break
                         upstream_buffer += data
-                        if nginx_socket.fileno() != -1:
-                            p.modify(nginx_socket, select.POLLOUT | select.POLLIN)
+                        if frontend_socket.fileno() != -1:
+                            p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
                 elif event & select.POLLOUT:
-                    if fd == upstream_socket.fileno() and len(nginx_buffer) > 0:
-                        sent = upstream_socket.send(nginx_buffer)
-                        nginx_buffer = nginx_buffer[sent:]
-                        if len(nginx_buffer) == 0:
+                    if fd == upstream_socket.fileno() and len(frontend_buffer) > 0:
+                        sent = upstream_socket.send(frontend_buffer)
+                        frontend_buffer = frontend_buffer[sent:]
+                        if len(frontend_buffer) == 0:
                             p.modify(upstream_socket, select.POLLIN)
-                    elif fd == nginx_socket.fileno() and len(upstream_buffer) > 0:
+                    elif fd == frontend_socket.fileno() and len(upstream_buffer) > 0:
                         try:
-                            sent = nginx_socket.send(upstream_buffer)
+                            sent = frontend_socket.send(upstream_buffer)
                         except (ConnectionResetError, BrokenPipeError):
-                            p.unregister(nginx_socket.fileno())
-                            nginx_socket.close()
+                            p.unregister(frontend_socket.fileno())
+                            frontend_socket.close()
                             break
                         upstream_buffer = upstream_buffer[sent:]
                         if len(upstream_buffer) == 0:
                             if upstream_socket.fileno() == -1:
-                                p.unregister(nginx_socket.fileno())
-                                nginx_socket.close()
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
                             else:
-                                p.modify(nginx_socket, select.POLLIN)
+                                p.modify(frontend_socket, select.POLLIN)
                 elif event & (select.POLLHUP | select.POLLERR):
-                    if fd == nginx_socket.fileno():
-                        p.unregister(nginx_socket.fileno())
-                        nginx_socket.close()
+                    if fd == frontend_socket.fileno():
+                        p.unregister(frontend_socket.fileno())
+                        frontend_socket.close()
                     elif fd == upstream_socket.fileno():
                         p.unregister(upstream_socket.fileno())
                         upstream_socket.close()
@@ -203,44 +203,44 @@ class Proxy:
     def only_read(
         self,
         httpHeaders: HttpHeaders,
-        nginx_socket: socket.socket,
-        nginx_buffer: bytes,
+        frontend_socket: socket.socket,
+        frontend_buffer: bytes,
         request_whole: bytes
     ) -> None:
         p = select.epoll()
-        p.register(nginx_socket, select.POLLIN)
+        p.register(frontend_socket, select.POLLIN)
         bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
         while True:
             if time.time() > bail:
-                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
-                nginx_socket.close()
+                frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                frontend_socket.close()
                 break
-            if nginx_socket.fileno() == -1:
+            if frontend_socket.fileno() == -1:
                 break
             events = p.poll(1)  # Returns list of (fd, event_type) tuples
             for fd, event in events:
                 if event & select.POLLIN:
-                    if fd == nginx_socket.fileno():
-                        data = nginx_socket.recv(Proxy.buffer_size)
+                    if fd == frontend_socket.fileno():
+                        data = frontend_socket.recv(Proxy.buffer_size)
                         if not data:
-                            nginx_socket.close()
+                            frontend_socket.close()
                             break
-                        nginx_buffer += data
+                        frontend_buffer += data
                         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
                             request_whole += data
                             if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
                                 self.log(httpHeaders, request_whole)
-                                nginx_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
-                                nginx_socket.close()
+                                frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                                frontend_socket.close()
                                 break
                 if event & (select.POLLHUP | select.POLLERR):
-                    if fd == nginx_socket.fileno():
-                        nginx_socket.close()
+                    if fd == frontend_socket.fileno():
+                        frontend_socket.close()
         p.close()
         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
             self.log(httpHeaders, request_whole)
 
-    def parse_headers(self, nginx_socket: socket.socket, buffer: bytes) -> HttpHeaders:
+    def parse_headers(self, frontend_socket: socket.socket, buffer: bytes) -> HttpHeaders:
         buffer_decoded = buffer.decode(errors='ignore')
         host: str = ''
         ip: str = ''
@@ -310,22 +310,22 @@ class Proxy:
 
     def proxy_handle_client(
             self,
-            nginx_socket: socket.socket,
+            frontend_socket: socket.socket,
             addr: tuple[str, int]
     ) -> None:
-        nginx_buffer: bytes = b''
+        frontend_buffer: bytes = b''
         upstream_buffer: bytes = b''
         upstream_socket: socket.socket | None = None
         forward: bool = True
         request_whole: bytes = b''
         request_clean_upto: int = 0
 
-        nginx_socket.setblocking(False)
-        nginx_buffer = self.read_headers(nginx_socket, nginx_buffer)
-        if nginx_socket.fileno() == -1:
+        frontend_socket.setblocking(False)
+        frontend_buffer = self.read_headers(frontend_socket, frontend_buffer)
+        if frontend_socket.fileno() == -1:
             return
-        request_whole = nginx_buffer
-        httpHeaders = self.parse_headers(nginx_socket, nginx_buffer)
+        request_whole = frontend_buffer
+        httpHeaders = self.parse_headers(frontend_socket, frontend_buffer)
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
@@ -334,24 +334,24 @@ class Proxy:
             forward = False
             self.ban(str(httpHeaders.ip), self.rts, self.config)
         if not forward and not self.config.mode_honeypot:
-            nginx_socket.close()
+            frontend_socket.close()
             return
         if forward:
             upstream_socket = self.connect_upstream(httpHeaders)
             if not upstream_socket or upstream_socket.fileno() == -1:
-                nginx_socket.close()
+                frontend_socket.close()
                 return
             self.forward(
                 httpHeaders,
-                nginx_socket,
-                nginx_buffer,
+                frontend_socket,
+                frontend_buffer,
                 upstream_socket,
                 upstream_buffer,
                 request_whole,
                 request_clean_upto
             )
         elif self.config.mode_honeypot:
-            self.only_read(httpHeaders, nginx_socket, nginx_buffer, request_whole)
+            self.only_read(httpHeaders, frontend_socket, frontend_buffer, request_whole)
         return
 
     @staticmethod

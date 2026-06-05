@@ -7,7 +7,7 @@ Main goal is to have virtually no false positives and not to disrupt normal oper
 
 ## Features
 
-1. Can be used with nginx with proxy_pass
+1. Can be used with nginx or Apache2 as the frontend proxy
 2. Supports whitelist of bots and ip addresses 
 3. Supports blacklist of bots and ip addresses
 4. Supports list of known attack url patterns
@@ -15,11 +15,11 @@ Main goal is to have virtually no false positives and not to disrupt normal oper
 6. Supports list of known bad user agents that are banned on sight
 7. Performs deep packet inspection and guards against known sql inections, php exploits, node.js exploits (catches react2shell too)
 8. Analyzes long running responses from upstream and bans if certain threshold is reached by an ip address
-6. Support whitelisting triggers: when authorized access is detected to certain url (HTTP status 200), the requester address is added to whitelist for that certain vhost
+9. Support whitelisting triggers: when authorized access is detected to certain url (HTTP status 200), the requester address is added to whitelist for that certain vhost
 
 ## Prerequisites
 
-- Nginx installed and running as a reverse proxy
+- Nginx or Apache2 installed and running as a reverse proxy
 - min.waf 
 - python-requests
 - Root or sudo privileges
@@ -52,18 +52,53 @@ ln -s /usr/local/min.waf/min.waf.py /usr/sbin/min.waf.py
 ```
 systemctl daemon-reload && systemctl enable --now min.waf.service
 ```
-7. Configure each nginx virtual host to use min.waf between nginx and the upstream. In other words: copy old proxy_pass to MinWaf-Dest header, set proxy_pass to min.waf and make sure X-Real-IP is right.
+
+### 2. Configure the frontend proxy
+
+min.waf requires the frontend proxy to inject two headers:
+- `X-Real-IP` — the real client IP address
+- `MinWaf-Dest` — the upstream address min.waf should forward the request to (e.g. `127.0.0.1:8080`)
+
+#### Nginx
+
+Configure each virtual host to proxy through min.waf. Copy the old `proxy_pass` destination to `MinWaf-Dest`, then point `proxy_pass` at min.waf:
+
+```nginx
+location / {
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header MinWaf-Dest <upstream address or hostname>:80;
+    proxy_pass http://127.0.0.1:9009;
+}
 ```
-    location / {
-        ...
-            proxy_set_header        X-Real-IP $remote_addr;  # this is important to have, min.waf will use it
-            proxy_set_header 	    MinWaf-Dest <upstream address or hostname>:80;  # where to forward it after processing
-            proxy_pass 		        http://127.0.0.1:9009;
-    }
+
+#### Apache2
+
+Enable the required modules:
+
+```bash
+a2enmod proxy proxy_http headers ssl
 ```
+
+Configure each virtual host:
+
+```apache
+<VirtualHost *:443>
+    ServerName example.com
+
+    # TLS config here ...
+
+    RequestHeader set X-Real-IP "%{REMOTE_ADDR}s"
+    RequestHeader set MinWaf-Dest "127.0.0.1:8080"
+
+    ProxyPass / http://127.0.0.1:9009/
+    ProxyPassReverse / http://127.0.0.1:9009/
+</VirtualHost>
+```
+
+> **Note:** If Apache2 itself sits behind another proxy (e.g. a CDN), use `%{HTTP:X-Forwarded-For}e` instead of `%{REMOTE_ADDR}s` to preserve the real client IP.
 
 ## Diagram
 
 ```
-[Client] → [Nginx:443] → [min.waf:9009] → [App]
+[Client] → [Nginx or Apache2:443] → [min.waf:9009] → [App]
 ```
