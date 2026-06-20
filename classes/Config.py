@@ -19,6 +19,12 @@ class Config:
         self.config = configparser.ConfigParser()
         self.config.read(minwaf_path + "/defaults.conf")
         self.config.read(self.filename)
+        self.getlistint.cache_clear()
+        self.harmful_patterns.cache_clear()
+        self.longest_harmful_pattern.cache_clear()
+        self.whitelist_triggers.cache_clear()
+        self.whitelist_host_triggers.cache_clear()
+        self.host_has_trigger.cache_clear()
 
     @property
     def mode_honeypot(self) -> bool:

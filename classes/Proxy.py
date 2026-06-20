@@ -62,11 +62,17 @@ class Proxy:
                 s.close()
             executor.shutdown(wait=True, cancel_futures=False)
 
+    header_read_timeout: float = 5.0
+
     def read_headers(self, frontend_socket: socket.socket, buffer: bytes) -> bytes:
         with select.epoll() as epoll:
             epoll.register(frontend_socket.fileno(), select.EPOLLIN)
             while True:
-                events = epoll.poll()
+                events = epoll.poll(Proxy.header_read_timeout)
+                if not events:
+                    epoll.unregister(frontend_socket.fileno())
+                    frontend_socket.close()
+                    return buffer
                 for _, event in events:
                     if event & select.EPOLLIN:
                         try:
@@ -145,12 +151,24 @@ class Proxy:
                                 self.log(httpHeaders, request_whole)
                         p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
                     elif fd == upstream_socket.fileno():
-                        data = upstream_socket.recv(Proxy.buffer_size)
+                        try:
+                            data = upstream_socket.recv(Proxy.buffer_size)
+                        except (ConnectionResetError, BrokenPipeError):
+                            p.unregister(frontend_socket.fileno())
+                            frontend_socket.close()
+                            p.unregister(upstream_socket.fileno())
+                            upstream_socket.close()
+                            data = None
+                            break
                         if not response_status:
                             response_whole += data
                         if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
                             first_line = response_whole.decode(errors='ignore').splitlines()[0]
-                            _, response_status_str, _ = first_line.split(' ', 2)
+                            try:
+                                _, response_status_str, _ = first_line.split(' ', 2)
+                            except ValueError:
+                                # Malformed response, treat as bad request
+                                response_status_str = '-1'
                             response_status = int(response_status_str)
                             httpHeaders.http_status = int(response_status_str)
                             httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
@@ -159,6 +177,8 @@ class Proxy:
                                 self.log(httpHeaders, request_whole, force=True)
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
                                 data = None
                                 break
                         if not data:
