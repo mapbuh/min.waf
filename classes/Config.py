@@ -122,6 +122,8 @@ class BotWhitelist:
         return whitelist_bots_list
 
     def check(self, user_agent: str, ip: str) -> bool:
+        if not ip:
+            return False
         if user_agent in self.whitelist_cache:
             if ip in self.whitelist_cache[user_agent]:
                 return True
