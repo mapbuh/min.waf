@@ -66,7 +66,7 @@ class IDS:
                 del self.path[key]
                 del self.ts[key]
 
-    def add(self, path: str, host: str, http_status: int) -> None:
+    def add(self, path: str, host: str, http_status: int, ip: str) -> None:
         with self._lock:
             self._expire_unlocked()
             if path not in self.path:
@@ -75,6 +75,7 @@ class IDS:
                 self.path[path].hosts[host] = IDSHost()
             if http_status not in self.path[path].hosts[host].http_statuses:
                 self.path[path].hosts[host].http_statuses[http_status] = []
+            self.path[path].hosts[host].http_statuses[http_status].append(ip)
             self.ts[path] = time.time()
 
 

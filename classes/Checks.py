@@ -129,7 +129,7 @@ class Checks:
     def log_probes(httpHeaders: HttpHeaders, rts: RunTimeStats) -> None:
         # TODO - make it LRU cache
         if httpHeaders.http_status != 200:
-            rts.inter_domain.add(httpHeaders.path, httpHeaders.host, httpHeaders.http_status or 0)
+            rts.inter_domain.add(httpHeaders.path, httpHeaders.host, httpHeaders.http_status or 0, httpHeaders.ip)
 
     @staticmethod
     def process_http_request(
