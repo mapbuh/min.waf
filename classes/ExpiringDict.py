@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Generic, TypeVar
+from typing import Any, Callable, Generic, TypeVar
 
 T = TypeVar('T')
 
@@ -58,6 +58,16 @@ class ExpiringDict(Generic[T]):
         with self._lock:
             self._expire_unlocked()
             return self.data.get(key, default)
+
+    def get_or_create(self, key: str, factory: Callable[[], T], ts: float | None = None) -> T:
+        if ts is None:
+            ts = time.time()
+        with self._lock:
+            self._expire_unlocked()
+            if key not in self.data:
+                self.data[key] = factory()
+            self.ts[key] = ts
+            return self.data[key]
 
     def keys(self) -> list[str]:
         with self._lock:
