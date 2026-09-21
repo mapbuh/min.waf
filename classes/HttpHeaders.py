@@ -34,5 +34,6 @@ class HttpHeaders:
         self.http_status = http_status
         self.ts: float = ts or time.time()
         self.status: int = self.STATUS_NEUTRAL
+        self.ban_reason: str = ""
         self.logged: bool = False
         self.upstream_response_time: float = upstream_response_time or 0.0

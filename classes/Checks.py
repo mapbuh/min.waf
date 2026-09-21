@@ -17,6 +17,7 @@ class Checks:
         with rts._banned_ips_lock:
             is_banned = httpHeaders.ip in rts.banned_ips
         if is_banned:
+            httpHeaders.ban_reason = "already banned"
             if config.config.getboolean('log', 'bans'):
                 logger.info(f"{httpHeaders.ip} banned; already banned")
             httpHeaders.status = HttpHeaders.STATUS_BAD
@@ -35,9 +36,11 @@ class Checks:
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if rts.ip_blacklist and rts.ip_blacklist.is_ip_blacklisted(httpHeaders.ip):
+            httpHeaders.ban_reason = "found in blacklist"
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if Bots.bad_bot(config, httpHeaders.ua):
+            httpHeaders.ban_reason = f"Bad bot detected: {httpHeaders.ua}"
             if config.config.getboolean('log', 'bad_bots'):
                 logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_BAD
@@ -48,7 +51,8 @@ class Checks:
         if config.config.getboolean("main", "inspect_packets"):
             for signature in config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
-                    logger.info(f"Harmful signature detected in header: {signature}")
+                    httpHeaders.ban_reason = f"Harmful signature detected in URL: {signature}"
+                    logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
         return True
@@ -93,7 +97,8 @@ class Checks:
         for signature in config.harmful_patterns():
             if signature.encode().lower() in dirty_data.lower():
                 logger = logging.getLogger("min.waf")
-                logger.info(f"Harmful signature detected in content: {signature}")
+                httpHeaders.ban_reason = f"Harmful signature detected in content: {signature}"
+                logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
                 httpHeaders.status = HttpHeaders.STATUS_BAD
                 return False, clean_upto
         clean_upto = len(buffer)
@@ -179,8 +184,10 @@ class Checks:
             ua_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
         if Checks.bad_http_stats(config, httpHeaders, ip_data):
+            httpHeaders.ban_reason = f"Bad http_status ratio: {ip_data.http_status_bad:.2f}"
             return False
         if Checks.bad_steal_ratio(config, ip_data):
+            httpHeaders.ban_reason = f"Stealing time: {ip_data.steal_time:.2f}s, ratio: {ip_data.steal_ratio:.2f}"
             return False
         if KnownAttacks.is_known(config, httpHeaders):
             return False

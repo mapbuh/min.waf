@@ -87,11 +87,11 @@ class IpTables:
         ip_address: str,
         rts: RunTimeStats,
         config: Config,
-    ) -> None:
+    ) -> bool:
         with rts._banned_ips_lock:
             if ip_address in rts.banned_ips:
                 rts.banned_ips[ip_address] = time.time()
-                return
+                return False
             rts.banned_ips[ip_address] = time.time()
         if ":" in ip_address:
             subprocess.run([
@@ -110,7 +110,7 @@ class IpTables:
                 "--dport", "443",
                 "-j", "DROP",
             ])
-            return
+            return True
         subprocess.run([
             "iptables",
             "-A", config.config.get('main', 'iptables_chain'),
@@ -127,7 +127,7 @@ class IpTables:
             "--dport", "443",
             "-j", "DROP",
         ])
-        return
+        return True
 
     @staticmethod
     def unban_expired(config: Config, rts: RunTimeStats) -> None:

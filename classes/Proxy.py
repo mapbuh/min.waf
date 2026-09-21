@@ -140,7 +140,7 @@ class Proxy:
                                 request_clean_upto
                             )
                             if not clean:
-                                self.ban(httpHeaders.ip, self.rts, self.config)
+                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
                                 p.unregister(upstream_socket.fileno())
@@ -173,7 +173,7 @@ class Proxy:
                             httpHeaders.http_status = int(response_status_str)
                             httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
                             if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
-                                self.ban(httpHeaders.ip, self.rts, self.config)
+                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                 self.log(httpHeaders, request_whole, force=True)
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
@@ -348,11 +348,11 @@ class Proxy:
         httpHeaders = self.parse_headers(frontend_socket, frontend_buffer)
         if not Checks.headers(httpHeaders, self.config, self.rts):
             forward = False
-            self.ban(str(httpHeaders.ip), self.rts, self.config)
+            self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
         clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
         if not clean:
             forward = False
-            self.ban(str(httpHeaders.ip), self.rts, self.config)
+            self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
         if not forward and not self.config.mode_honeypot:
             frontend_socket.close()
             return
@@ -378,15 +378,19 @@ class Proxy:
     def ban(
         ip: str,
         rts: RunTimeStats,
-        config: Config
+        config: Config,
+        reason: str = "request rejected",
     ) -> None:
         with rts._counters_lock:
             rts.bans += 1
         if config.config.get('main', 'ban_method') == 'iptables':
-            IpTables.ban(ip, rts, config)
+            new_ban = IpTables.ban(ip, rts, config)
         else:
             with rts._banned_ips_lock:
+                new_ban = ip not in rts.banned_ips
                 rts.banned_ips[ip] = time.time()
+        if new_ban and config.config.getboolean("log", "bans"):
+            logging.getLogger("min.waf").info("%s banned; %s", ip, reason or "request rejected")
 
     def log(self, httpHeaders: HttpHeaders, request_whole: bytes, force: bool = False) -> None:
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:

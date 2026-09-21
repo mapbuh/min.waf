@@ -26,6 +26,7 @@ class KnownAttacks:
             return False
         for attack in config.getlist('main', 'known_attacks'):
             if attack.lower() in httpHeaders.path.lower():
-                logger.info(f"{httpHeaders.ip} banned; Known attack detected: {httpHeaders.req}")
+                httpHeaders.ban_reason = f"Known attack detected: {httpHeaders.req}"
+                logger.info(f"{httpHeaders.ip} banned; {httpHeaders.ban_reason}")
                 return True
         return False
