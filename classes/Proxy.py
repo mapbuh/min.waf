@@ -65,10 +65,12 @@ class Proxy:
     header_read_timeout: float = 5.0
 
     def read_headers(self, frontend_socket: socket.socket, buffer: bytes) -> bytes:
+        deadline = time.monotonic() + Proxy.header_read_timeout
         with select.epoll() as epoll:
             epoll.register(frontend_socket.fileno(), select.EPOLLIN)
             while True:
-                events = epoll.poll(Proxy.header_read_timeout)
+                remaining = deadline - time.monotonic()
+                events = epoll.poll(max(0, remaining)) if remaining > 0 else []
                 if not events:
                     epoll.unregister(frontend_socket.fileno())
                     frontend_socket.close()
@@ -77,6 +79,8 @@ class Proxy:
                     if event & select.EPOLLIN:
                         try:
                             data = frontend_socket.recv(Proxy.buffer_size)
+                        except BlockingIOError:
+                            continue
                         except (ConnectionResetError, BrokenPipeError):
                             data = None
                         if not data:
@@ -84,6 +88,9 @@ class Proxy:
                             frontend_socket.close()
                             return buffer
                         buffer += data
+                    elif event & (select.EPOLLHUP | select.EPOLLERR):
+                        frontend_socket.close()
+                        return buffer
                 if buffer.find(b'\r\n\r\n') != -1 or buffer.find(b'\n\n') != -1:
                     epoll.unregister(frontend_socket.fileno())
                     break
@@ -101,124 +108,133 @@ class Proxy:
     ) -> None:
         response_status: int | None = None
         response_whole: bytes = b''
-        p = select.epoll()
-        if len(upstream_buffer) > 0:
-            p.register(frontend_socket, select.POLLIN | select.POLLOUT)
-        else:
-            p.register(frontend_socket, select.POLLIN)
-        if len(frontend_buffer) > 0:
-            p.register(upstream_socket, select.POLLIN | select.POLLOUT)
-        else:
-            p.register(upstream_socket, select.POLLIN)
+        with select.epoll() as p:
+            if len(upstream_buffer) > 0:
+                p.register(frontend_socket, select.POLLIN | select.POLLOUT)
+            else:
+                p.register(frontend_socket, select.POLLIN)
+            if len(frontend_buffer) > 0:
+                p.register(upstream_socket, select.POLLIN | select.POLLOUT)
+            else:
+                p.register(upstream_socket, select.POLLIN)
 
-        while True:
-            if frontend_socket.fileno() == -1 and upstream_socket.fileno() == -1:
-                break
-            events = p.poll()
-            for fd, event in events:
-                if event & select.POLLIN:
-                    if fd == frontend_socket.fileno():
-                        try:
-                            data = frontend_socket.recv(Proxy.buffer_size)
-                        except (ConnectionResetError, BrokenPipeError):
-                            data = None
-                        if not data:
-                            p.unregister(frontend_socket.fileno())
-                            frontend_socket.close()
-                            if upstream_socket.fileno() != -1:
-                                p.unregister(upstream_socket.fileno())
-                                upstream_socket.close()
-                            self.log(httpHeaders, request_whole, force=True)
-                            break
-                        frontend_buffer += data
-                        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-                            request_whole += data
-                            clean, request_clean_upto = Checks.content(
-                                self.config,
-                                httpHeaders,
-                                request_whole,
-                                request_clean_upto
-                            )
-                            if not clean:
-                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+            while True:
+                if frontend_socket.fileno() == -1 and upstream_socket.fileno() == -1:
+                    break
+                events = p.poll(self.config.config.getfloat("main", "connection_idle_timeout", fallback=60))
+                if not events:
+                    return
+                for fd, event in events:
+                    if event & select.POLLIN:
+                        if fd == frontend_socket.fileno():
+                            try:
+                                data = frontend_socket.recv(Proxy.buffer_size)
+                            except BlockingIOError:
+                                continue
+                            except (ConnectionResetError, BrokenPipeError):
+                                data = None
+                            if not data:
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
-                                p.unregister(upstream_socket.fileno())
-                                upstream_socket.close()
+                                if upstream_socket.fileno() != -1:
+                                    p.unregister(upstream_socket.fileno())
+                                    upstream_socket.close()
                                 self.log(httpHeaders, request_whole, force=True)
                                 break
-                            if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
-                                self.log(httpHeaders, request_whole)
-                        p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
-                    elif fd == upstream_socket.fileno():
-                        try:
-                            data = upstream_socket.recv(Proxy.buffer_size)
-                        except (ConnectionResetError, BrokenPipeError):
-                            p.unregister(frontend_socket.fileno())
-                            frontend_socket.close()
-                            p.unregister(upstream_socket.fileno())
-                            upstream_socket.close()
-                            data = None
-                            break
-                        if not response_status:
-                            response_whole += data
-                        if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
-                            first_line = response_whole.decode(errors='ignore').splitlines()[0]
+                            frontend_buffer += data
+                            if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                                request_whole += data
+                                clean, request_clean_upto = Checks.content(
+                                    self.config,
+                                    httpHeaders,
+                                    request_whole,
+                                    request_clean_upto
+                                )
+                                if not clean:
+                                    self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+                                    p.unregister(frontend_socket.fileno())
+                                    frontend_socket.close()
+                                    p.unregister(upstream_socket.fileno())
+                                    upstream_socket.close()
+                                    self.log(httpHeaders, request_whole, force=True)
+                                    break
+                                if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
+                                    self.log(httpHeaders, request_whole)
+                            p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
+                        elif fd == upstream_socket.fileno():
                             try:
-                                _, response_status_str, _ = first_line.split(' ', 2)
-                            except ValueError:
-                                # Malformed response, treat as bad request
-                                response_status_str = '-1'
-                            response_status = int(response_status_str)
-                            httpHeaders.http_status = int(response_status_str)
-                            httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
-                            if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
-                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                self.log(httpHeaders, request_whole, force=True)
+                                data = upstream_socket.recv(Proxy.buffer_size)
+                            except BlockingIOError:
+                                continue
+                            except (ConnectionResetError, BrokenPipeError):
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
                                 p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                                 data = None
                                 break
-                        if not data:
+                            if not response_status:
+                                response_whole += data
+                            if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
+                                first_line = response_whole.decode(errors='ignore').splitlines()[0]
+                                try:
+                                    _, response_status_str, _ = first_line.split(' ', 2)
+                                except ValueError:
+                                    # Malformed response, treat as bad request
+                                    response_status_str = '-1'
+                                response_status = int(response_status_str)
+                                httpHeaders.http_status = int(response_status_str)
+                                httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
+                                if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
+                                    self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+                                    self.log(httpHeaders, request_whole, force=True)
+                                    p.unregister(frontend_socket.fileno())
+                                    frontend_socket.close()
+                                    p.unregister(upstream_socket.fileno())
+                                    upstream_socket.close()
+                                    data = None
+                                    break
+                            if not data:
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
+                                if len(upstream_buffer) == 0 and frontend_socket.fileno() != -1:
+                                    p.unregister(frontend_socket.fileno())
+                                    frontend_socket.close()
+                                break
+                            upstream_buffer += data
+                            if frontend_socket.fileno() != -1:
+                                p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
+                    elif event & select.POLLOUT:
+                        if fd == upstream_socket.fileno() and len(frontend_buffer) > 0:
+                            try:
+                                sent = upstream_socket.send(frontend_buffer)
+                            except BlockingIOError:
+                                continue
+                            frontend_buffer = frontend_buffer[sent:]
+                            if len(frontend_buffer) == 0:
+                                p.modify(upstream_socket, select.POLLIN)
+                        elif fd == frontend_socket.fileno() and len(upstream_buffer) > 0:
+                            try:
+                                sent = frontend_socket.send(upstream_buffer)
+                            except BlockingIOError:
+                                continue
+                            except (ConnectionResetError, BrokenPipeError):
+                                return
+                            upstream_buffer = upstream_buffer[sent:]
+                            if len(upstream_buffer) == 0:
+                                if upstream_socket.fileno() == -1:
+                                    p.unregister(frontend_socket.fileno())
+                                    frontend_socket.close()
+                                else:
+                                    p.modify(frontend_socket, select.POLLIN)
+                    elif event & (select.POLLHUP | select.POLLERR):
+                        if fd == frontend_socket.fileno():
+                            return
+                        elif fd == upstream_socket.fileno():
                             p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
-                            if len(upstream_buffer) == 0 and frontend_socket.fileno() != -1:
-                                p.unregister(frontend_socket.fileno())
-                                frontend_socket.close()
-                            break
-                        upstream_buffer += data
-                        if frontend_socket.fileno() != -1:
-                            p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
-                elif event & select.POLLOUT:
-                    if fd == upstream_socket.fileno() and len(frontend_buffer) > 0:
-                        sent = upstream_socket.send(frontend_buffer)
-                        frontend_buffer = frontend_buffer[sent:]
-                        if len(frontend_buffer) == 0:
-                            p.modify(upstream_socket, select.POLLIN)
-                    elif fd == frontend_socket.fileno() and len(upstream_buffer) > 0:
-                        try:
-                            sent = frontend_socket.send(upstream_buffer)
-                        except (ConnectionResetError, BrokenPipeError):
-                            p.unregister(frontend_socket.fileno())
-                            frontend_socket.close()
-                            break
-                        upstream_buffer = upstream_buffer[sent:]
-                        if len(upstream_buffer) == 0:
-                            if upstream_socket.fileno() == -1:
-                                p.unregister(frontend_socket.fileno())
-                                frontend_socket.close()
-                            else:
-                                p.modify(frontend_socket, select.POLLIN)
-                elif event & (select.POLLHUP | select.POLLERR):
-                    if fd == frontend_socket.fileno():
-                        p.unregister(frontend_socket.fileno())
-                        frontend_socket.close()
-                    elif fd == upstream_socket.fileno():
-                        p.unregister(upstream_socket.fileno())
-                        upstream_socket.close()
-        p.close()
+                            if not upstream_buffer:
+                                return
 
     def only_read(
         self,
@@ -227,36 +243,35 @@ class Proxy:
         frontend_buffer: bytes,
         request_whole: bytes
     ) -> None:
-        p = select.epoll()
-        p.register(frontend_socket, select.POLLIN)
-        bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
-        while True:
-            if time.time() > bail:
-                frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
-                frontend_socket.close()
-                break
-            if frontend_socket.fileno() == -1:
-                break
-            events = p.poll(1)  # Returns list of (fd, event_type) tuples
-            for fd, event in events:
-                if event & select.POLLIN:
-                    if fd == frontend_socket.fileno():
-                        data = frontend_socket.recv(Proxy.buffer_size)
-                        if not data:
-                            frontend_socket.close()
-                            break
-                        frontend_buffer += data
-                        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
-                            request_whole += data
-                            if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
-                                self.log(httpHeaders, request_whole)
-                                frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+        with select.epoll() as p:
+            p.register(frontend_socket, select.POLLIN)
+            bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
+            while True:
+                if time.time() > bail:
+                    frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                    frontend_socket.close()
+                    break
+                if frontend_socket.fileno() == -1:
+                    break
+                events = p.poll(1)  # Returns list of (fd, event_type) tuples
+                for fd, event in events:
+                    if event & select.POLLIN:
+                        if fd == frontend_socket.fileno():
+                            data = frontend_socket.recv(Proxy.buffer_size)
+                            if not data:
                                 frontend_socket.close()
                                 break
-                if event & (select.POLLHUP | select.POLLERR):
-                    if fd == frontend_socket.fileno():
-                        frontend_socket.close()
-        p.close()
+                            frontend_buffer += data
+                            if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                                request_whole += data
+                                if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
+                                    self.log(httpHeaders, request_whole)
+                                    frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
+                                    frontend_socket.close()
+                                    break
+                    if event & (select.POLLHUP | select.POLLERR):
+                        if fd == frontend_socket.fileno():
+                            frontend_socket.close()
         if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
             self.log(httpHeaders, request_whole)
 
@@ -312,6 +327,7 @@ class Proxy:
         upstream_socket = None
         try:
             upstream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            upstream_socket.settimeout(self.config.config.getfloat("main", "connect_timeout", fallback=10))
             upstream_socket.connect((httpHeaders.upstream_host, httpHeaders.upstream_port))
             upstream_socket.setblocking(False)
         except ConnectionRefusedError:
@@ -326,6 +342,10 @@ class Proxy:
             if upstream_socket is not None:
                 upstream_socket.close()
             upstream_socket = None
+        except OSError:
+            if upstream_socket is not None:
+                upstream_socket.close()
+            raise
         return upstream_socket
 
     def proxy_handle_client(
@@ -340,39 +360,46 @@ class Proxy:
         request_whole: bytes = b''
         request_clean_upto: int = 0
 
-        frontend_socket.setblocking(False)
-        frontend_buffer = self.read_headers(frontend_socket, frontend_buffer)
-        if frontend_socket.fileno() == -1:
-            return
-        request_whole = frontend_buffer
-        httpHeaders = self.parse_headers(frontend_socket, frontend_buffer)
-        if not Checks.headers(httpHeaders, self.config, self.rts):
-            forward = False
-            self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
-        clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
-        if not clean:
-            forward = False
-            self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
-        if not forward and not self.config.mode_honeypot:
-            frontend_socket.close()
-            return
-        if forward:
-            upstream_socket = self.connect_upstream(httpHeaders)
-            if not upstream_socket or upstream_socket.fileno() == -1:
-                frontend_socket.close()
+        try:
+            frontend_socket.setblocking(False)
+            frontend_buffer = self.read_headers(frontend_socket, frontend_buffer)
+            if frontend_socket.fileno() == -1:
                 return
-            self.forward(
-                httpHeaders,
-                frontend_socket,
-                frontend_buffer,
-                upstream_socket,
-                upstream_buffer,
-                request_whole,
-                request_clean_upto
-            )
-        elif self.config.mode_honeypot:
-            self.only_read(httpHeaders, frontend_socket, frontend_buffer, request_whole)
-        return
+            request_whole = frontend_buffer
+            httpHeaders = self.parse_headers(frontend_socket, frontend_buffer)
+            if not Checks.headers(httpHeaders, self.config, self.rts):
+                forward = False
+                self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
+            clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
+            if not clean:
+                forward = False
+                self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
+            if not forward and not self.config.mode_honeypot:
+                return
+            if forward:
+                upstream_socket = self.connect_upstream(httpHeaders)
+                if not upstream_socket or upstream_socket.fileno() == -1:
+                    return
+                self.forward(
+                    httpHeaders,
+                    frontend_socket,
+                    frontend_buffer,
+                    upstream_socket,
+                    upstream_buffer,
+                    request_whole,
+                    request_clean_upto
+                )
+            elif self.config.mode_honeypot:
+                self.only_read(httpHeaders, frontend_socket, frontend_buffer, request_whole)
+            return
+        except OSError as exc:
+            logging.getLogger("min.waf").debug("Connection %s closed: %s", addr, exc)
+        except Exception:
+            logging.getLogger("min.waf").exception("Error handling connection from %s", addr)
+        finally:
+            frontend_socket.close()
+            if upstream_socket is not None:
+                upstream_socket.close()
 
     @staticmethod
     def ban(

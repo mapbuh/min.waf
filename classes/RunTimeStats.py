@@ -1,3 +1,4 @@
+from collections import deque
 import threading
 import time
 
@@ -10,7 +11,7 @@ from classes.IpWhitelist import IpWhitelist
 
 class IDSHost:
     def __init__(self) -> None:
-        self.http_statuses: dict[int, list[str]] = {}
+        self.http_statuses: dict[int, deque[str]] = {}
 
 
 class IDSPath:
@@ -48,10 +49,12 @@ class IDS:
         self.ts: dict[str, float] = {}
         self.expiration_time = expiration_time
         self._lock = threading.Lock()
+        self._events: deque[tuple[float, str, str, int]] = deque()
 
     def __repr__(self) -> str:
         res = ""
         with self._lock:
+            self._expire_unlocked()
             for path in self.path:
                 for host in self.path[path].hosts:
                     for status in self.path[path].hosts[host].http_statuses:
@@ -60,11 +63,29 @@ class IDS:
         return res
 
     def _expire_unlocked(self) -> None:
-        current_time = time.time()
-        for key in list(self.ts.keys()):
-            if current_time - self.ts[key] > self.expiration_time:
-                del self.path[key]
-                del self.ts[key]
+        cutoff = time.monotonic() - self.expiration_time
+        # Expire individual probes, including probes for continuously active paths.
+        while self._events and self._events[0][0] < cutoff:
+            _, path, host, status = self._events.popleft()
+            hosts = self.path[path].hosts
+            statuses = hosts[host].http_statuses
+            statuses[status].popleft()
+            if not statuses[status]:
+                del statuses[status]
+            if not statuses:
+                del hosts[host]
+            if not hosts:
+                del self.path[path]
+                del self.ts[path]
+
+    def expire(self) -> None:
+        with self._lock:
+            self._expire_unlocked()
+
+    def counts(self) -> list[tuple[str, int]]:
+        with self._lock:
+            self._expire_unlocked()
+            return [(path, data.total_count()) for path, data in self.path.items()]
 
     def add(self, path: str, host: str, http_status: int, ip: str) -> None:
         with self._lock:
@@ -74,9 +95,10 @@ class IDS:
             if host not in self.path[path].hosts:
                 self.path[path].hosts[host] = IDSHost()
             if http_status not in self.path[path].hosts[host].http_statuses:
-                self.path[path].hosts[host].http_statuses[http_status] = []
+                self.path[path].hosts[host].http_statuses[http_status] = deque()
             self.path[path].hosts[host].http_statuses[http_status].append(ip)
             self.ts[path] = time.time()
+            self._events.append((time.monotonic(), path, host, http_status))
 
 
 class RunTimeStats:

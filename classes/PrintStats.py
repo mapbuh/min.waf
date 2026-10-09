@@ -15,12 +15,12 @@ class PrintStats:
             f"Whitelisted IPs: {', '.join(host + '/' + ip for host, ips in rts.ip_whitelist.whitelist.items() for ip in ips.values())}"
         )
         counter = 10
-        for path in sorted(rts.inter_domain.path, key=lambda p: rts.inter_domain.path[p].total_count(), reverse=True):
+        for path, count in sorted(rts.inter_domain.counts(), key=lambda item: item[1], reverse=True):
             if counter <= 0:
                 break
-            if rts.inter_domain.path[path].total_count() == 0:
+            if count == 0:
                 continue
             if path in ["/", "/robots.txt", "/favicon.ico", "/apple-touch-icon.png"]:
                 continue
-            logger.info(f"Path: {path}, Total Probes: {rts.inter_domain.path[path].total_count()}")
+            logger.info(f"Path: {path}, Total Probes: {count}")
             counter -= 1

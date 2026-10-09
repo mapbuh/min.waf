@@ -97,6 +97,15 @@ Configure each virtual host:
 
 > **Note:** If Apache2 itself sits behind another proxy (e.g. a CDN), use `%{HTTP:X-Forwarded-For}e` instead of `%{REMOTE_ADDR}s` to preserve the real client IP.
 
+## Connection timeouts
+
+The `[main]` settings `connect_timeout` (default 10 seconds) and
+`connection_idle_timeout` (default 60 seconds) release workers when upstream
+connections cannot be established or a relay has no socket activity. Increase
+`connection_idle_timeout` if your application needs longer silent responses,
+long polling, or idle WebSockets. Active transfers can continue beyond this
+interval. Request headers must arrive within 5 seconds.
+
 ## Diagram
 
 ```
