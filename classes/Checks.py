@@ -105,6 +105,25 @@ class Checks:
         return True, clean_upto
 
     @staticmethod
+    def multipart_headers(config: Config, httpHeaders: HttpHeaders, part_headers: list[bytes]) -> bool:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False
+        if not config.config.getboolean('main', 'inspect_packets'):
+            return True
+        for part_header in part_headers:
+            part_header = part_header.lower()
+            for signature in config.harmful_patterns():
+                if signature.encode().lower() in part_header:
+                    logger = logging.getLogger("min.waf")
+                    httpHeaders.ban_reason = f"Harmful signature detected in multipart header: {signature}"
+                    logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
+                    httpHeaders.status = HttpHeaders.STATUS_BAD
+                    return False
+        return True
+
+    @staticmethod
     def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:
         logger = logging.getLogger("min.waf")
         if ip_data.http_status_bad >= float(config.config.get('main', 'http_status_bad_threshold')):

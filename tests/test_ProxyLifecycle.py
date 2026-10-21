@@ -8,6 +8,7 @@ import pytest
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
 from classes.Proxy import Proxy
+from classes.RequestInspector import RequestInspector
 
 
 @pytest.fixture
@@ -52,7 +53,7 @@ def test_disconnected_frontend_releases_worker(proxy, monkeypatch, event):
     # A second poll means the disconnected client's worker was retained.
     poller.poll.side_effect = [[(10, event)], AssertionError('worker still waiting')]
     monkeypatch.setattr('classes.Proxy.select.epoll', lambda: poller)
-    proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', 0)
+    proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', RequestInspector(proxy.config, HttpHeaders()))
     poller.poll.assert_called_once()
     poller.__exit__.assert_called_once()
 
@@ -67,7 +68,7 @@ def test_poller_closed_when_relay_raises(proxy, monkeypatch):
     poller.poll.return_value = [(11, select.POLLOUT)]
     monkeypatch.setattr('classes.Proxy.select.epoll', lambda: poller)
     with pytest.raises(BrokenPipeError):
-        proxy.forward(HttpHeaders(), frontend, b'request', upstream, b'', b'', 0)
+        proxy.forward(HttpHeaders(), frontend, b'request', upstream, b'', b'', RequestInspector(proxy.config, HttpHeaders()))
     poller.__exit__.assert_called_once()
 
 
@@ -155,5 +156,5 @@ def test_temporary_write_backpressure_preserves_response(proxy, monkeypatch):
     poller.__enter__.return_value = poller
     poller.poll.side_effect = [[(10, select.POLLOUT)], [(10, select.POLLOUT)], []]
     monkeypatch.setattr('classes.Proxy.select.epoll', lambda: poller)
-    proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', 0)
+    proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', RequestInspector(proxy.config, HttpHeaders()))
     assert [call.args for call in frontend.send.call_args_list] == [(b'response',), (b'response',)]

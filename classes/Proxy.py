@@ -12,6 +12,7 @@ from classes.Checks import Checks
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
 from classes.IpTables import IpTables
+from classes.RequestInspector import RequestInspector
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -104,7 +105,7 @@ class Proxy:
             upstream_socket: socket.socket,
             upstream_buffer: bytes,
             request_whole: bytes,
-            request_clean_upto: int,
+            inspector: RequestInspector,
     ) -> None:
         response_status: int | None = None
         response_whole: bytes = b''
@@ -142,24 +143,19 @@ class Proxy:
                                 self.log(httpHeaders, request_whole, force=True)
                                 break
                             frontend_buffer += data
-                            if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                            max_inspect_size = self.config.config.getint("main", "max_inspect_size")
+                            if len(request_whole) < max_inspect_size:
                                 request_whole += data
-                                clean, request_clean_upto = Checks.content(
-                                    self.config,
-                                    httpHeaders,
-                                    request_whole,
-                                    request_clean_upto
-                                )
-                                if not clean:
-                                    self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                    p.unregister(frontend_socket.fileno())
-                                    frontend_socket.close()
-                                    p.unregister(upstream_socket.fileno())
-                                    upstream_socket.close()
-                                    self.log(httpHeaders, request_whole, force=True)
-                                    break
-                                if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
-                                    self.log(httpHeaders, request_whole)
+                            if not inspector.feed(data):
+                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
+                                self.log(httpHeaders, request_whole, force=True)
+                                break
+                            if len(request_whole) >= max_inspect_size:
+                                self.log(httpHeaders, request_whole)
                             p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
                         elif fd == upstream_socket.fileno():
                             try:
@@ -358,7 +354,6 @@ class Proxy:
         upstream_socket: socket.socket | None = None
         forward: bool = True
         request_whole: bytes = b''
-        request_clean_upto: int = 0
 
         try:
             frontend_socket.setblocking(False)
@@ -370,8 +365,8 @@ class Proxy:
             if not Checks.headers(httpHeaders, self.config, self.rts):
                 forward = False
                 self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
-            clean, request_clean_upto = Checks.content(self.config, httpHeaders, request_whole, request_clean_upto)
-            if not clean:
+            inspector = RequestInspector(self.config, httpHeaders)
+            if not inspector.feed(request_whole):
                 forward = False
                 self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
             if not forward and not self.config.mode_honeypot:
@@ -387,7 +382,7 @@ class Proxy:
                     upstream_socket,
                     upstream_buffer,
                     request_whole,
-                    request_clean_upto
+                    inspector
                 )
             elif self.config.mode_honeypot:
                 self.only_read(httpHeaders, frontend_socket, frontend_buffer, request_whole)
