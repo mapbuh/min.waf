@@ -4,3 +4,4 @@ ip_blacklist.txt*
 .coverage
 cache
 CLAUDE.*
+.venv

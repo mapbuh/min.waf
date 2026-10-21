@@ -13,7 +13,7 @@ Main goal is to have virtually no false positives and not to disrupt normal oper
 4. Supports list of known attack url patterns
 5. Analyzes http statuses from given address and bans when given threshold is reached
 6. Supports list of known bad user agents that are banned on sight
-7. Performs deep packet inspection and guards against known sql inections, php exploits, node.js exploits (catches react2shell too)
+7. Performs deep packet inspection and guards against known sql inections, php exploits, node.js exploits (should catch react2shell and php2shell)
 8. Analyzes long running responses from upstream and bans if certain threshold is reached by an ip address
 9. Support whitelisting triggers: when authorized access is detected to certain url (HTTP status 200), the requester address is added to whitelist for that certain vhost
 
