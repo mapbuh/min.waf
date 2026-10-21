@@ -13,7 +13,6 @@ Ideally we'll identify new patterns by:
 """
 
 
-import logging
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
 
@@ -21,12 +20,10 @@ from classes.HttpHeaders import HttpHeaders
 class KnownAttacks:
     @staticmethod
     def is_known(config: Config, httpHeaders: HttpHeaders) -> bool:
-        logger = logging.getLogger("min.waf")
         if httpHeaders.http_status not in [404, 500]:
             return False
         for attack in config.getlist('main', 'known_attacks'):
             if attack.lower() in httpHeaders.path.lower():
                 httpHeaders.ban_reason = f"Known attack detected: {httpHeaders.req}"
-                logger.info(f"{httpHeaders.ip} banned; {httpHeaders.ban_reason}")
                 return True
         return False
