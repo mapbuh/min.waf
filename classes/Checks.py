@@ -7,6 +7,7 @@ from classes.ExpiringList import ExpiringList
 from classes.HttpHeaders import HttpHeaders
 from classes.IpData import IpData
 from classes.KnownAttacks import KnownAttacks
+from classes.MultipartCounter import MultipartCounter
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -122,6 +123,43 @@ class Checks:
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
         return True
+
+    @staticmethod
+    def multipart_limits(
+        config: Config,
+        httpHeaders: HttpHeaders,
+        counter: MultipartCounter | None,
+        chunked: bool,
+    ) -> bool:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False
+        if not config.config.getboolean('main', 'inspect_packets'):
+            return True
+        reason = ""
+        if chunked and config.config.getboolean('main', 'multipart_block_chunked'):
+            reason = "Chunked multipart request"
+        elif counter and counter.long_header:
+            reason = f"Multipart header longer than {MultipartCounter.max_line} bytes"
+        elif counter:
+            for value, option, label in (
+                (counter.parts, 'multipart_max_parts', "parts"),
+                (counter.part_headers, 'multipart_max_part_headers', "headers in a part"),
+                (counter.nesting, 'multipart_max_nesting', "nesting in a part header"),
+                (counter.empty_files, 'multipart_max_empty_files', "empty file parts"),
+            ):
+                limit = config.config.getint('main', option)
+                if limit and value > limit:
+                    reason = f"Too many multipart {label}: {value} > {limit}"
+                    break
+        if not reason:
+            return True
+        logger = logging.getLogger("min.waf")
+        httpHeaders.ban_reason = reason
+        logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
+        httpHeaders.status = HttpHeaders.STATUS_BAD
+        return False
 
     @staticmethod
     def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:

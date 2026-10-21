@@ -26,7 +26,7 @@ def test_idspath_methods():
 
 def test_ids_add_and_repr():
     ids = IDS()
-    ids.add("/path", "host", 404)
+    ids.add("/path", "host", 404, "10.0.0.1")
     assert "/path" in ids.path
     assert "host" in ids.path["/path"].hosts
     assert 404 in ids.path["/path"].hosts["host"].http_statuses
@@ -38,7 +38,8 @@ def test_runtimestats_init_and_blacklist(monkeypatch: pytest.MonkeyPatch):
     config = Config("test.conf")
     rts = RunTimeStats(config)
     assert rts.start_time == 0
-    assert rts.lines_parsed == 0
+    assert rts.all == 0
+    assert rts.bans == 0
     assert isinstance(rts.ip_whitelist, object)
     assert isinstance(rts.banned_ips, dict)
     assert isinstance(rts.ip_stats, object)

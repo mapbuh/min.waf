@@ -6,10 +6,13 @@ from classes.Utils import Utils
 
 
 class IpBlacklist:
+    # retry interval after a failed download, in seconds
+    retry_time: int = 60
 
     def __init__(self, config: Config) -> None:
         self.config = config
         self.list_valid_until = 0
+        self.list: dict[str, None] = {}
         self.load()
 
     def load(self) -> None:
@@ -23,7 +26,11 @@ class IpBlacklist:
             timeout=10,
             ttl=self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
         )
-        self.list: dict[str, None] = {ip: None for ip in blacklist.decode().splitlines()}
+        if not blacklist:
+            # keep the previous list and retry soon
+            self.list_valid_until = time.time() + IpBlacklist.retry_time
+            return
+        self.list = {ip: None for ip in blacklist.decode().splitlines()}
         self.list_valid_until = time.time() + random.randint(0, 60) + \
             self.config.config.getint('main', 'ip_blacklist_refresh_time', fallback=3600)
 

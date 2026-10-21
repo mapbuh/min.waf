@@ -49,6 +49,9 @@ class Utils:
             return result
 
         t.join()
+        if not os.path.exists(cache_file):
+            logger.warning(f"No data for {url}: fetch failed and nothing is cached")
+            return result
         with open(cache_file, 'rb') as f:
             logger.info(f"Using freshly cached response for {url}")
             result = f.read()
@@ -65,6 +68,8 @@ class Utils:
     ) -> Dict[str, Any]:
         """Fetch a URL with caching to avoid repeated requests."""
         data = Utils.requests_get_cached(url, timeout, cache_dir, ttl, strict, logger)
+        if not data:
+            return {}
         return json.loads(data.decode(), strict=False)
 
     lockfile = threading.Lock()

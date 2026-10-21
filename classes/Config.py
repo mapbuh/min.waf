@@ -118,6 +118,12 @@ class BotWhitelist:
                                 logger.warning(f"Invalid network in bot whitelist: {ip_prefix}")
                 except Exception as e:
                     logger.warning(f"Failed to load IP ranges for bot {section}: {e}")
+                # keep the previous ranges when a refresh brings none
+                user_agent = self.config.config.get(section, 'user_agent')
+                previous = getattr(self, 'whitelist', {})
+                if user_agent not in whitelist_bots_list and user_agent in previous:
+                    whitelist_bots_list[user_agent] = previous[user_agent]
+        self.whitelist = whitelist_bots_list
         self.whitelist_cache = {}
         return whitelist_bots_list
 

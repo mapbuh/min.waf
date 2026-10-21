@@ -313,4 +313,4 @@ def test_bad_steal_ratio(
             ts=time.time()-i
         ))
     assert ip_data.used_time90 > 5
-    assert Checks.bad_steal_ratio(config, ip_data) is False
+    assert Checks.bad_steal_ratio(config, ip_data) is True

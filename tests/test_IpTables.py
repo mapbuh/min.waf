@@ -1,18 +1,14 @@
 import pytest
+import threading
 import time
 from classes.Config import Config
 from classes.IpTables import IpTables
 
 
-class DummyConfig:
-    iptables_chain = "MINWAF"
-    ban_time = 10
-
-
 class DummyRunTimeStats:
     def __init__(self):
         self.banned_ips: dict[str, float] = {}
-        self.bans = 0
+        self._banned_ips_lock = threading.Lock()
 
 
 def test_clear_and_init(monkeypatch: pytest.MonkeyPatch):
@@ -51,10 +47,13 @@ def test_ban(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
     config = Config("test.conf")
     rts = DummyRunTimeStats()
-    IpTables.ban("1.2.3.4", rts, config)
+    assert IpTables.ban("1.2.3.4", rts, config)
     assert "1.2.3.4" in rts.banned_ips
-    assert rts.bans == 1
     assert any("iptables" in c[0] for c in calls)
+    calls.clear()
+    # already banned: the ban time is refreshed without a new rule
+    assert not IpTables.ban("1.2.3.4", rts, config)
+    assert calls == []
 
 
 def test_unban_expired(monkeypatch: pytest.MonkeyPatch):

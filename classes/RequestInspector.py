@@ -4,6 +4,7 @@ from classes.Checks import Checks
 from classes.ChunkedDecoder import ChunkedDecoder
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
+from classes.MultipartCounter import MultipartCounter
 from classes.MultipartScanner import MultipartScanner
 
 
@@ -12,12 +13,13 @@ class RequestInspector:
 
     Chunked bodies are decoded first, so chunk framing cannot split a signature.
     For multipart bodies the part headers are checked over the whole body, not
-    only the first max_inspect_size bytes.
+    only the first max_inspect_size bytes, and the body structure is checked
+    against the multipart limits.
     """
 
     _head_end = re.compile(rb'\r?\n\r?\n')
     _chunked = re.compile(rb'^transfer-encoding:[^\n]*chunked', re.IGNORECASE | re.MULTILINE)
-    _multipart = re.compile(rb'^content-type:[^\n]*multipart/', re.IGNORECASE | re.MULTILINE)
+    _multipart = re.compile(rb'^content-type:([^\n]*multipart/[^\n]*)', re.IGNORECASE | re.MULTILINE)
 
     def __init__(self, config: Config, httpHeaders: HttpHeaders) -> None:
         self.config = config
@@ -27,6 +29,7 @@ class RequestInspector:
         self.in_body: bool = False
         self.chunked: ChunkedDecoder | None = None
         self.multipart: MultipartScanner | None = None
+        self.counter: MultipartCounter | None = None
 
     def feed(self, data: bytes) -> bool:
         max_inspect_size = self.config.config.getint("main", "max_inspect_size")
@@ -43,8 +46,12 @@ class RequestInspector:
             self.inspected = head
             if self._chunked.search(head):
                 self.chunked = ChunkedDecoder()
-            if self._multipart.search(head):
+            multipart = self._multipart.search(head)
+            if multipart:
                 self.multipart = MultipartScanner()
+                boundary = MultipartCounter.boundary(multipart.group(1).strip())
+                if boundary is not None:
+                    self.counter = MultipartCounter(boundary)
         if self.chunked:
             data = self.chunked.feed(data)
         if len(self.inspected) < max_inspect_size:
@@ -52,6 +59,10 @@ class RequestInspector:
             if not self._content():
                 return False
         if self.multipart:
+            if self.counter:
+                self.counter.feed(data)
+            if not Checks.multipart_limits(self.config, self.httpHeaders, self.counter, bool(self.chunked)):
+                return False
             return Checks.multipart_headers(self.config, self.httpHeaders, self.multipart.feed(data))
         return True
 
