@@ -51,7 +51,6 @@ class Checks:
             for signature in config.harmful_patterns():
                 if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
                     httpHeaders.ban_reason = f"Harmful signature detected in URL: {signature}"
-                    logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
         return True
@@ -95,9 +94,7 @@ class Checks:
         dirty_data = buffer[dirty_data_from:]
         for signature in config.harmful_patterns():
             if signature.encode().lower() in dirty_data.lower():
-                logger = logging.getLogger("min.waf")
                 httpHeaders.ban_reason = f"Harmful signature detected in content: {signature}"
-                logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
                 httpHeaders.status = HttpHeaders.STATUS_BAD
                 return False, clean_upto
         clean_upto = len(buffer)
@@ -115,9 +112,7 @@ class Checks:
             part_header = part_header.lower()
             for signature in config.harmful_patterns():
                 if signature.encode().lower() in part_header:
-                    logger = logging.getLogger("min.waf")
                     httpHeaders.ban_reason = f"Harmful signature detected in multipart header: {signature}"
-                    logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
         return True
@@ -153,9 +148,7 @@ class Checks:
                     break
         if not reason:
             return True
-        logger = logging.getLogger("min.waf")
         httpHeaders.ban_reason = reason
-        logger.info(f"{httpHeaders.ip} {httpHeaders.ban_reason}")
         httpHeaders.status = HttpHeaders.STATUS_BAD
         return False
 

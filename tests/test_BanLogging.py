@@ -56,6 +56,8 @@ def test_new_ban_logging(config, rts, monkeypatch, caplog, method, ip, enabled):
     ('content', 'Harmful signature detected in content: exec('),
     ('bot', 'Bad bot detected: python-requests'),
     ('blacklist', 'found in blacklist'),
+    ('multipart_header', 'Harmful signature detected in multipart header: PHP_SESSION_UPLOAD_PROGRESS'),
+    ('multipart_limit', 'Chunked multipart request'),
 ])
 @pytest.mark.parametrize('category_logging', ['False', 'True'])
 def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trigger, reason, category_logging):
@@ -71,6 +73,14 @@ def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trig
         request += b'exec('
     elif trigger == 'bot':
         headers.ua = 'python-requests'
+    elif trigger == 'multipart_header':
+        # past max_inspect_size only the multipart part headers are still checked
+        config.config.set('main', 'max_inspect_size', '64')
+        request = (b'POST / HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=b\r\n\r\n'
+                   b'--b\r\nContent-Disposition: form-data; name="PHP_SESSION_UPLOAD_PROGRESS"\r\n\r\n')
+    elif trigger == 'multipart_limit':
+        request = (b'POST / HTTP/1.1\r\nContent-Type: multipart/form-data; boundary=b\r\n'
+                   b'Transfer-Encoding: chunked\r\n\r\n')
     else:
         rts.ip_blacklist.is_ip_blacklisted.return_value = True
     proxy = Proxy.__new__(Proxy)
@@ -84,7 +94,7 @@ def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trig
 
     client.close.assert_called_once()
     assert headers.ip in rts.banned_ips
-    assert [m for m in caplog.messages if ' banned;' in m] == [f'{headers.ip} banned; {reason}']
+    assert caplog.messages == [f'{headers.ip} banned; {reason}']
 
 
 def test_response_rejection_reason(config, rts, caplog):
