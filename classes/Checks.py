@@ -42,8 +42,6 @@ class Checks:
             return False
         if Bots.bad_bot(config, httpHeaders.ua):
             httpHeaders.ban_reason = f"Bad bot detected: {httpHeaders.ua}"
-            if config.config.getboolean('log', 'bad_bots'):
-                logger.info(f"{httpHeaders.ip} banned; Bad bot detected: {httpHeaders.ua}")
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
         if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
@@ -163,29 +161,15 @@ class Checks:
 
     @staticmethod
     def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:
-        logger = logging.getLogger("min.waf")
-        if ip_data.http_status_bad >= float(config.config.get('main', 'http_status_bad_threshold')):
-            logger.info(
-                f"{httpHeaders.ip} banned; Bad http_status ratio: {ip_data.http_status_bad:.2f} "
-                f"from {ip_data.request_count} reqs")
-            return True
-        return False
+        return ip_data.http_status_bad >= float(config.config.get('main', 'http_status_bad_threshold'))
 
     @staticmethod
     def bad_steal_ratio(config: Config, ip_data: IpData) -> bool:
-        logger = logging.getLogger("min.waf")
-        if (
+        return (
             ip_data.steal_time < (-config.config.getint('main', 'steal_total'))
             and ip_data.avail_time > config.config.getint('main', 'steal_over_time')
             and ip_data.steal_ratio > config.config.getfloat('main', 'steal_ratio')
-        ):
-            logger.info(
-                f"{ip_data.key} banned; Stealing time: {ip_data.steal_time:.2f}s "
-                f"t/a: {ip_data.total_time:.2f}/{ip_data.avail_time:.2f} "
-                f"req: {ip_data.request_count} ratio: {ip_data.steal_ratio:.2f}"
-            )
-            return True
-        return False
+        )
 
     @staticmethod
     def log_probes(httpHeaders: HttpHeaders, rts: RunTimeStats) -> None:
@@ -241,10 +225,16 @@ class Checks:
             ua_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
         if Checks.bad_http_stats(config, httpHeaders, ip_data):
-            httpHeaders.ban_reason = f"Bad http_status ratio: {ip_data.http_status_bad:.2f}"
+            httpHeaders.ban_reason = (
+                f"Bad http_status ratio: {ip_data.http_status_bad:.2f} from {ip_data.request_count} reqs"
+            )
             return False
         if Checks.bad_steal_ratio(config, ip_data):
-            httpHeaders.ban_reason = f"Stealing time: {ip_data.steal_time:.2f}s, ratio: {ip_data.steal_ratio:.2f}"
+            httpHeaders.ban_reason = (
+                f"Stealing time: {ip_data.steal_time:.2f}s "
+                f"t/a: {ip_data.total_time:.2f}/{ip_data.avail_time:.2f} "
+                f"req: {ip_data.request_count} ratio: {ip_data.steal_ratio:.2f}"
+            )
             return False
         if KnownAttacks.is_known(config, httpHeaders):
             return False

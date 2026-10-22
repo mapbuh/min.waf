@@ -57,11 +57,12 @@ def test_new_ban_logging(config, rts, monkeypatch, caplog, method, ip, enabled):
     ('bot', 'Bad bot detected: python-requests'),
     ('blacklist', 'found in blacklist'),
 ])
-def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trigger, reason):
+@pytest.mark.parametrize('category_logging', ['False', 'True'])
+def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trigger, reason, category_logging):
     config.config.set('main', 'ban_method', 'internal')
-    # Central ban logging must work even when category logging is disabled.
-    config.config.set('log', 'bad_bots', 'False')
-    config.config.set('log', 'blacklist', 'False')
+    # Central ban logging must work when category logging is disabled, and log once when enabled.
+    config.config.set('log', 'bad_bots', category_logging)
+    config.config.set('log', 'blacklist', category_logging)
     headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/')
     request = b'GET / HTTP/1.1\r\n\r\n'
     if trigger == 'url':
@@ -100,3 +101,25 @@ def test_response_rejection_reason(config, rts, caplog):
     assert not Checks.headers_with_status(headers, config, rts)
     Proxy.ban(headers.ip, rts, config, headers.ban_reason)
     assert caplog.messages[-1] == '203.0.113.10 banned; Known attack detected: example.com/.env'
+
+
+@pytest.mark.parametrize('stats,reason', [
+    ({'http_status_bad': 0.86}, 'Bad http_status ratio: 0.86 from 26 reqs'),
+    ({'steal_time': -20, 'total_time': 40, 'avail_time': 20, 'steal_ratio': 0.5},
+     'Stealing time: -20.00s t/a: 40.00/20.00 req: 26 ratio: 0.50'),
+])
+def test_stats_ban_logs_once_with_details(config, rts, caplog, stats, reason):
+    headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/', http_status=200)
+    config.config.set('main', 'ban_method', 'internal')
+    config.config.set('main', 'url_stats', 'False')
+    config.config.set('main', 'ua_stats', 'False')
+    rts.ip_stats = Mock()
+    rts.ip_stats.get_or_create.return_value = SimpleNamespace(**{
+        'log_lines': Mock(), 'request_count': 26, 'http_status_bad': 0,
+        'steal_time': 0, 'total_time': 0, 'avail_time': 0, 'steal_ratio': 0, **stats,
+    })
+    caplog.set_level(logging.INFO, logger='min.waf')
+
+    assert not Checks.headers_with_status(headers, config, rts)
+    Proxy.ban(headers.ip, rts, config, headers.ban_reason)
+    assert caplog.messages == [f'203.0.113.10 banned; {reason}']
