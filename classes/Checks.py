@@ -1,4 +1,5 @@
 import logging
+import re
 import urllib.parse
 
 from classes.Bots import Bots
@@ -9,9 +10,13 @@ from classes.IpData import IpData
 from classes.KnownAttacks import KnownAttacks
 from classes.MultipartCounter import MultipartCounter
 from classes.RunTimeStats import RunTimeStats
+from classes.UrlencodedCounter import UrlencodedCounter
 
 
 class Checks:
+    _set_cookie = re.compile(rb'^set-cookie[ \t]*:[ \t]*([^=;\r\n]*)=([^;\r\n]*)', re.IGNORECASE | re.MULTILINE)
+    _session_id = re.compile(rb'[A-Za-z0-9,-]*')
+
     @staticmethod
     def headers(httpHeaders: HttpHeaders, config: Config, rts: RunTimeStats) -> bool:
         logger = logging.getLogger("min.waf")
@@ -115,6 +120,12 @@ class Checks:
                     httpHeaders.ban_reason = f"Harmful signature detected in multipart header: {signature}"
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
+            for filename in MultipartCounter.filenames(part_header):
+                for signature in config.getlist('signatures', 'upload_filenames'):
+                    if signature.encode().lower() in filename:
+                        httpHeaders.ban_reason = f"Harmful signature detected in upload filename: {signature}"
+                        httpHeaders.status = HttpHeaders.STATUS_BAD
+                        return False
         return True
 
     @staticmethod
@@ -151,6 +162,46 @@ class Checks:
         httpHeaders.ban_reason = reason
         httpHeaders.status = HttpHeaders.STATUS_BAD
         return False
+
+    @staticmethod
+    def urlencoded_limits(config: Config, httpHeaders: HttpHeaders, counter: UrlencodedCounter) -> bool:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False
+        if not config.config.getboolean('main', 'inspect_packets'):
+            return True
+        limit = config.config.getint('main', 'urlencoded_max_name_length')
+        if not limit or counter.max_array_name <= limit:
+            return True
+        httpHeaders.ban_reason = f"Urlencoded array field name too long: {counter.max_array_name} > {limit}"
+        httpHeaders.status = HttpHeaders.STATUS_BAD
+        return False
+
+    @staticmethod
+    def response_headers(config: Config, httpHeaders: HttpHeaders, head: bytes) -> bool:
+        if httpHeaders.status == HttpHeaders.STATUS_GOOD:
+            return True
+        if httpHeaders.status == HttpHeaders.STATUS_BAD:
+            return False
+        if not config.config.getboolean('main', 'inspect_packets'):
+            return True
+        names = [name.encode().lower() for name in config.getlist('main', 'session_cookies')]
+        limit = config.config.getint('main', 'session_cookie_max_length')
+        for match in Checks._set_cookie.finditer(head):
+            name, value = match.group(1).strip().lower(), match.group(2).strip()
+            if name not in names:
+                continue
+            if limit and len(value) > limit:
+                reason = f"Session cookie {name.decode(errors='replace')} too long: {len(value)} > {limit}"
+            elif not Checks._session_id.fullmatch(value):
+                reason = f"Session cookie {name.decode(errors='replace')} with invalid characters"
+            else:
+                continue
+            httpHeaders.ban_reason = reason
+            httpHeaders.status = HttpHeaders.STATUS_BAD
+            return False
+        return True
 
     @staticmethod
     def bad_http_stats(config: Config, httpHeaders: HttpHeaders, ip_data: IpData) -> bool:

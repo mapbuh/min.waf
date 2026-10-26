@@ -13,6 +13,7 @@ from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
 from classes.IpTables import IpTables
 from classes.RequestInspector import RequestInspector
+from classes.ResponseInspector import ResponseInspector
 from classes.RunTimeStats import RunTimeStats
 
 
@@ -109,6 +110,7 @@ class Proxy:
     ) -> None:
         response_status: int | None = None
         response_whole: bytes = b''
+        response_inspector = ResponseInspector(self.config, httpHeaders)
         with select.epoll() as p:
             if len(upstream_buffer) > 0:
                 p.register(frontend_socket, select.POLLIN | select.POLLOUT)
@@ -190,15 +192,26 @@ class Proxy:
                                     upstream_socket.close()
                                     data = None
                                     break
+                            clean, released = response_inspector.feed(data)
+                            if not clean:
+                                self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+                                self.log(httpHeaders, request_whole, force=True)
+                                p.unregister(frontend_socket.fileno())
+                                frontend_socket.close()
+                                p.unregister(upstream_socket.fileno())
+                                upstream_socket.close()
+                                break
+                            upstream_buffer += released
                             if not data:
                                 p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                                 if len(upstream_buffer) == 0 and frontend_socket.fileno() != -1:
                                     p.unregister(frontend_socket.fileno())
                                     frontend_socket.close()
+                                elif frontend_socket.fileno() != -1:
+                                    p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
                                 break
-                            upstream_buffer += data
-                            if frontend_socket.fileno() != -1:
+                            if frontend_socket.fileno() != -1 and upstream_buffer:
                                 p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
                     elif event & select.POLLOUT:
                         if fd == upstream_socket.fileno() and len(frontend_buffer) > 0:

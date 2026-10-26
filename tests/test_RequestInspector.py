@@ -183,3 +183,56 @@ def test_whitelisted_request_skips_limits(config):
     http_headers.status = HttpHeaders.STATUS_GOOD
     inspector = RequestInspector(config, http_headers)
     assert inspector.feed(multipart_head(b'Transfer-Encoding: chunked\r\n') + part(b'a' + b'[]' * 17, b'1'))
+
+
+def urlencoded_head() -> bytes:
+    return (
+        b'POST / HTTP/1.1\r\n'
+        b'Host: example.com\r\n'
+        b'Content-Type: application/x-www-form-urlencoded\r\n'
+        b'\r\n'
+    )
+
+
+def test_long_urlencoded_array_name_is_blocked(config):
+    # the name runs far past max_inspect_size
+    body = b'a=1&name[' + b'x' * 100_000 + b']=1'
+    clean, http_headers = inspect(config, in_chunks(urlencoded_head() + body))
+    assert not clean
+    assert http_headers.ban_reason.startswith("Urlencoded array field name too long: ")
+
+
+def test_long_urlencoded_plain_value_passes(config):
+    body = b'name[x]=' + b'x' * 100_000
+    clean, _ = inspect(config, in_chunks(urlencoded_head() + body))
+    assert clean
+
+
+def test_long_urlencoded_array_name_passes_when_disabled(config):
+    config.config.set('main', 'urlencoded_max_name_length', '0')
+    body = b'name[' + b'x' * 100_000
+    clean, _ = inspect(config, in_chunks(urlencoded_head() + body))
+    assert clean
+
+
+def test_long_array_name_without_urlencoded_type_passes(config):
+    head = b'POST / HTTP/1.1\r\nHost: example.com\r\nContent-Type: application/json\r\n\r\n'
+    clean, _ = inspect(config, in_chunks(head + b'[' + b'x' * 100_000))
+    assert clean
+
+
+@pytest.mark.parametrize('filename', [b'<?php phpinfo(); ?>.jpg', b'a|O:8:"stdClass":0:{}', b'x|c:3:"Foo"'])
+def test_harmful_upload_filename_is_blocked(config, filename):
+    body = (
+        part(b'pad', b'A' * 100_000)
+        + b'--xyz\r\nContent-Disposition: form-data; name="f"; filename="' + filename + b'"\r\n\r\ndata\r\n'
+    )
+    clean, http_headers = inspect(config, in_chunks(multipart_head() + body))
+    assert not clean
+    assert 'upload filename' in http_headers.ban_reason
+
+
+def test_harmless_upload_filename_passes(config):
+    body = b'--xyz\r\nContent-Disposition: form-data; name="f"; filename="a|b.txt"\r\n\r\n<?php echo 1;\r\n--xyz--\r\n'
+    clean, _ = inspect(config, [multipart_head() + body])
+    assert clean

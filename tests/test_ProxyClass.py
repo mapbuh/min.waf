@@ -41,6 +41,7 @@ class TestMinProxy:
         server.listen(1)
         server.settimeout(5)
         received: list[bytes] = []
+        responses: list[bytes] = [RESPONSE]
 
         def serve():
             try:
@@ -56,11 +57,11 @@ class TestMinProxy:
                         break
                     data += chunk
                 received.append(data)
-                conn.sendall(RESPONSE)
+                conn.sendall(responses[0])
 
         thread = threading.Thread(target=serve)
         thread.start()
-        yield server.getsockname()[1], received
+        yield server.getsockname()[1], received, responses
         # wakes up accept() when the proxy never connected
         server.shutdown(socket.SHUT_RDWR)
         server.close()
@@ -80,7 +81,7 @@ class TestMinProxy:
         return response
 
     def test_request_is_relayed_to_upstream(self, proxy: Proxy, upstream):
-        port, received = upstream
+        port, received, _ = upstream
         request = (
             b'GET /index.php HTTP/1.1\r\n'
             b'X-Real-IP: 1.2.3.4\r\n'
@@ -93,7 +94,7 @@ class TestMinProxy:
         assert "1.2.3.4" not in proxy.rts.banned_ips
 
     def test_harmful_request_is_banned_and_not_relayed(self, proxy: Proxy, upstream):
-        port, received = upstream
+        port, received, _ = upstream
         request = (
             b'GET /index.php?cmd=shell_exec(id) HTTP/1.1\r\n'
             b'X-Real-IP: 1.2.3.4\r\n'
@@ -103,6 +104,20 @@ class TestMinProxy:
         )
         assert self.handle(proxy, request) == b''
         assert received == []
+        assert "1.2.3.4" in proxy.rts.banned_ips
+
+    def test_leaking_session_cookie_is_dropped_and_banned(self, proxy: Proxy, upstream):
+        port, received, responses = upstream
+        responses[0] = b'HTTP/1.1 200 OK\r\nSet-Cookie: PHPSESSID=%00' + b'a' * 70_000 + b'\r\n\r\nok'
+        request = (
+            b'GET /index.php HTTP/1.1\r\n'
+            b'X-Real-IP: 1.2.3.4\r\n'
+            b'Host: example.com\r\n'
+            b'MinWaf-Dest: 127.0.0.1:%d\r\n'
+            b'\r\n' % port
+        )
+        assert self.handle(proxy, request) == b''
+        assert received == [request]
         assert "1.2.3.4" in proxy.rts.banned_ips
 
     def test_unreachable_upstream_closes_client(self, proxy: Proxy):

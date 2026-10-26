@@ -106,8 +106,15 @@ class MultipartCounter:
         if self.header is None:
             return
         self.nesting = max(self.nesting, self.header.count(b'['))
-        for match in self._filename.finditer(self.header):
-            filename = next((group for group in match.groups() if group is not None), b'')
+        for filename in MultipartCounter.filenames(self.header):
             if not filename.replace(b'\\', b'/').rsplit(b'/', 1)[-1]:
                 self.empty_file = True
         self.header = None
+
+    @staticmethod
+    def filenames(header: bytes) -> list[bytes]:
+        """Extracts the filename values from a Content-Disposition header."""
+        return [
+            next((group for group in match.groups() if group is not None), b'')
+            for match in MultipartCounter._filename.finditer(header)
+        ]
