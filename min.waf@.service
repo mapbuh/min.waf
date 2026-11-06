@@ -1,0 +1,21 @@
+# One min.waf instance per port, all reading /etc/min.waf.conf.
+# The instance name is the port:
+#   systemctl enable --now min.waf@9009 min.waf@9010
+# Each instance gets its own pid file (/run/min.waf-<port>.pid)
+# and iptables chain (MINWAF-<port>).
+[Unit]
+Description=min.waf Service on port %i
+After=network.target iptables.service firewalld.service ip6tables.service ipset.service nftables.service
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/min.waf.py --config /etc/min.waf.conf --port %i
+PIDFile=/run/min.waf-%i.pid
+ExecReload=/bin/kill -HUP $MAINPID
+KillSignal=SIGINT
+Restart=on-failure
+RestartPreventExitStatus=0 255
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -53,6 +53,13 @@ ln -s /usr/local/min.waf/min.waf.py /usr/sbin/min.waf.py
 systemctl daemon-reload && systemctl enable --now min.waf.service
 ```
 
+To run several instances from one config on different ports, use the `min.waf@.service` template instead. The instance name is the port:
+```
+cp min.waf@.service /etc/systemd/system
+systemctl daemon-reload && systemctl enable --now min.waf@9009 min.waf@9010
+```
+Each instance overrides `port` with `--port` and gets its own lockfile (`/var/run/min.waf-<port>.pid`) and iptables chain (`MINWAF-<port>`).
+
 ### 2. Configure the frontend proxy
 
 min.waf requires the frontend proxy to inject two headers:
