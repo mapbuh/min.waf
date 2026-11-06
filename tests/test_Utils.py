@@ -101,7 +101,8 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch, temp_cache_di
     for t in threads:
         t.join()
     end_time = time.time()
-    assert end_time - start_time > 5  # All threads should complete quickly due to caching
+    # threads waiting for the lock reuse the fresh download instead of fetching again
+    assert end_time - start_time < 5
 
 
 def test_fetch_and_cache(monkeypatch: pytest.MonkeyPatch, temp_cache_dir):
@@ -115,6 +116,35 @@ def test_fetch_and_cache(monkeypatch: pytest.MonkeyPatch, temp_cache_dir):
     Utils.fetch_and_cache(url, 10, cache_file)
     with open(cache_file, 'rb') as f:
         assert f.read() == data
+
+
+def _fetch_in_process(url: str, cache_file: str, calls_file: str) -> None:
+    def fake_get(url: str, timeout: int):
+        with open(calls_file, "a") as f:
+            f.write("x")
+        time.sleep(1)
+        return DummyResponse(b"shared")
+    utils_module.requests.get = fake_get
+    Utils.fetch_and_cache(url, 10, cache_file)
+
+
+def test_fetch_and_cache_shared_between_processes(temp_cache_dir):
+    """Several instances refreshing the same URL download it only once."""
+    import multiprocessing
+    url = "http://example.com/shared"
+    cache_file = os.path.join(temp_cache_dir, utils_module.hashlib.md5(url.encode()).hexdigest())
+    calls_file = os.path.join(temp_cache_dir, "calls")
+    ctx = multiprocessing.get_context("fork")
+    procs = [ctx.Process(target=_fetch_in_process, args=(url, cache_file, calls_file)) for _ in range(4)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join()
+    with open(calls_file) as f:
+        assert f.read() == "x"
+    with open(cache_file, "rb") as f:
+        assert f.read() == b"shared"
+    assert not os.path.exists(cache_file + ".tmp")
 
 
 @pytest.mark.parametrize("strict", [True, False])

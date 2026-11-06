@@ -1,4 +1,5 @@
 from typing import Any, Optional, Dict
+import fcntl
 import hashlib
 import json
 import logging
@@ -72,18 +73,27 @@ class Utils:
             return {}
         return json.loads(data.decode(), strict=False)
 
-    lockfile = threading.Lock()
-
     @staticmethod
     def fetch_and_cache(
         url: str,
         timeout: int,
         cache_file: str,
     ) -> None:
-        """Fetch a URL and cache the response."""
+        """Fetch a URL and cache the response.
+
+        The cache is shared by all min.waf instances (and threads), so an
+        exclusive lock on <cache_file>.lock lets only one of them download a
+        URL at a time. Whoever waited for the lock skips the download if the
+        cache was refreshed meanwhile.
+        """
         logger = logging.getLogger("min.waf")
-        with Utils.lockfile:
-            try:
+        started = time.time()
+        try:
+            with open(cache_file + ".lock", "a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                if os.path.exists(cache_file) and os.path.getmtime(cache_file) >= started:
+                    logger.info(f"{url} was fetched by another instance while waiting, not fetching again")
+                    return
                 response = requests.get(url, timeout=timeout)
                 response.raise_for_status()
                 temp_file = cache_file + ".tmp"
@@ -91,5 +101,5 @@ class Utils:
                     logger.info(f"Fetching response from {url}")
                     f.write(response.content)
                 os.replace(temp_file, cache_file)
-            except Exception as e:
-                logger.error(f"Error fetching and caching {url}: {e}")
+        except Exception as e:
+            logger.error(f"Error fetching and caching {url}: {e}")
