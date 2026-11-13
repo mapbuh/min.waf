@@ -142,7 +142,7 @@ class Proxy:
                                 if upstream_socket.fileno() != -1:
                                     p.unregister(upstream_socket.fileno())
                                     upstream_socket.close()
-                                self.log(httpHeaders, request_whole, force=True)
+                                self.log(httpHeaders, request_whole)
                                 break
                             frontend_buffer += data
                             max_inspect_size = self.config.config.getint("main", "max_inspect_size")
@@ -154,7 +154,7 @@ class Proxy:
                                 frontend_socket.close()
                                 p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
-                                self.log(httpHeaders, request_whole, force=True)
+                                self.log(httpHeaders, request_whole)
                                 break
                             if len(request_whole) >= max_inspect_size:
                                 self.log(httpHeaders, request_whole)
@@ -185,7 +185,7 @@ class Proxy:
                                 httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
                                 if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                     self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                    self.log(httpHeaders, request_whole, force=True)
+                                    self.log(httpHeaders, request_whole)
                                     p.unregister(frontend_socket.fileno())
                                     frontend_socket.close()
                                     p.unregister(upstream_socket.fileno())
@@ -195,7 +195,7 @@ class Proxy:
                             clean, released = response_inspector.feed(data)
                             if not clean:
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                self.log(httpHeaders, request_whole, force=True)
+                                self.log(httpHeaders, request_whole)
                                 p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
                                 p.unregister(upstream_socket.fileno())
@@ -427,7 +427,7 @@ class Proxy:
         if new_ban and config.config.getboolean("log", "bans"):
             logging.getLogger("min.waf").info("%s banned; %s", ip, reason or "request rejected")
 
-    def log(self, httpHeaders: HttpHeaders, request_whole: bytes, force: bool = False) -> None:
+    def log(self, httpHeaders: HttpHeaders, request_whole: bytes) -> None:
         if not httpHeaders.status == HttpHeaders.STATUS_BAD:
             return
         if httpHeaders.logged:
