@@ -1,3 +1,4 @@
+import functools
 import ipaddress
 import logging
 from classes.ExpiringList import ExpiringList
@@ -14,6 +15,18 @@ class IpWhitelist:
     def load(self) -> None:
         self.whitelist.clear()
 
+    @functools.lru_cache(maxsize=4)
+    def _parsed_whitelist(self, entries: tuple[str, ...]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+        """Parse the configured whitelist networks, once per config change."""
+        logger = logging.getLogger("min.waf")
+        parsed: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+        for net in entries:
+            try:
+                parsed.append(ipaddress.ip_network(net))
+            except ValueError as err:
+                logger.warning(f"Whitelist network {net!r}: {err}")
+        return parsed
+
     def is_whitelisted(self, host: str, ip: str) -> bool:
         logger = logging.getLogger("min.waf")
         try:
@@ -21,14 +34,12 @@ class IpWhitelist:
         except ValueError:
             addr = None
         if addr is not None:
-            for net in self.config.getlist('main', 'whitelist'):
-                try:
-                    if addr in ipaddress.ip_network(net):
-                        if self.config.config.getboolean('log', 'whitelist'):
-                            logger.debug(f"{ip} permanent whitelist match in {net}")
-                        return True
-                except ValueError as err:
-                    logger.warning(f"Whitelist checking {ip} {err=}")
+            networks = self._parsed_whitelist(tuple(self.config.getlist('main', 'whitelist')))
+            for net in networks:
+                if addr in net:
+                    if self.config.config.getboolean('log', 'whitelist'):
+                        logger.debug(f"{ip} permanent whitelist match in {net}")
+                    return True
         if host in self.whitelist:
             if ip in self.whitelist[host].values():
                 self.whitelist[host].touch(ip)
