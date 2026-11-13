@@ -99,8 +99,10 @@ class Config:
 class BotWhitelist:
     def __init__(self, config: Config) -> None:
         self.config: Config = config
-        self.whitelist: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = self.load()
+        self.whitelist: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        self.whitelist_lower: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
         self.whitelist_cache: dict[str, dict[str, str]] = {}
+        self.load()
 
     def load(self) -> dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]]:
         logger: logging.Logger = logging.getLogger("min.waf")
@@ -141,6 +143,11 @@ class BotWhitelist:
                 if user_agent not in whitelist_bots_list and user_agent in previous:
                     whitelist_bots_list[user_agent] = previous[user_agent]
         self.whitelist = whitelist_bots_list
+        # lowered bot names once per load instead of per request
+        lowered: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        for bot, networks in whitelist_bots_list.items():
+            lowered.setdefault(bot.lower(), []).extend(networks)
+        self.whitelist_lower = lowered
         self.whitelist_cache = {}
         return whitelist_bots_list
 
@@ -150,10 +157,15 @@ class BotWhitelist:
         if user_agent in self.whitelist_cache:
             if ip in self.whitelist_cache[user_agent]:
                 return True
-        for bot, networks in self.whitelist.items():
-            if bot.lower() in user_agent.lower():
+        try:
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            return False
+        ua_lower = user_agent.lower()
+        for bot, networks in self.whitelist_lower.items():
+            if bot in ua_lower:
                 for net in networks:
-                    if ipaddress.ip_address(ip) in net:
+                    if addr in net:
                         self.whitelist_cache.setdefault(user_agent, {})[ip] = bot
                         return True
         return False
