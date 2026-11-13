@@ -45,8 +45,13 @@ class Proxy:
         s.listen(1024)
 
         executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="proxy-worker")
-        refresh_ts: float = time.time()
-        logstats_ts: float = time.time()
+        stop = threading.Event()
+        threading.Thread(
+            target=Proxy.periodic,
+            args=(cb_10_seconds, cb_1_hour, stop),
+            name="periodic",
+            daemon=True,
+        ).start()
 
         try:
             while True:
@@ -54,19 +59,38 @@ class Proxy:
                 with self.rts._counters_lock:
                     self.rts.all += 1
                 executor.submit(self.proxy_handle_client, conn, addr)
-                if (time.time() - refresh_ts) > 10:
-                    refresh_ts = time.time()
-                    cb_10_seconds()
-                if (time.time() - logstats_ts) > 3600:
-                    logstats_ts = time.time()
-                    cb_1_hour()
 
         except KeyboardInterrupt:
             pass
         finally:
+            stop.set()
             if s:
                 s.close()
             executor.shutdown(wait=True, cancel_futures=False)
+
+    periodic_interval: float = 10.0
+
+    @staticmethod
+    def periodic(cb_10_seconds: Callable[[], None], cb_1_hour: Callable[[], None], stop: threading.Event) -> None:
+        """Runs the periodic callbacks off the accept loop until stop is set.
+
+        They run on time when no connections arrive, a slow one (a download,
+        iptables calls) does not hold up accepting connections, and a failing
+        one is logged and retried on the next tick instead of ending min.waf.
+        """
+        last_hour = time.monotonic()
+        while not stop.wait(Proxy.periodic_interval):
+            Proxy.run_callback(cb_10_seconds)
+            if time.monotonic() - last_hour >= 3600:
+                last_hour = time.monotonic()
+                Proxy.run_callback(cb_1_hour)
+
+    @staticmethod
+    def run_callback(callback: Callable[[], None]) -> None:
+        try:
+            callback()
+        except Exception:
+            logging.getLogger("min.waf").exception("Periodic task %s failed", getattr(callback, "__name__", callback))
 
     header_read_timeout: float = 5.0
 

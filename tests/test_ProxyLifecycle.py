@@ -200,3 +200,46 @@ def test_temporary_write_backpressure_preserves_response(proxy, monkeypatch):
     monkeypatch.setattr('classes.Proxy.select.epoll', lambda: poller)
     proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', RequestInspector(proxy.config, HttpHeaders()))
     assert [call.args for call in frontend.send.call_args_list] == [(b'response',), (b'response',)]
+
+
+def test_periodic_callbacks_survive_failures(monkeypatch):
+    # the callbacks run on their own thread; one failing must not end min.waf
+    import threading
+    monkeypatch.setattr(Proxy, 'periodic_interval', 0.01)
+    calls = []
+    stop = threading.Event()
+
+    def failing():
+        calls.append(1)
+        if len(calls) >= 3:
+            stop.set()
+        raise RuntimeError('blacklist is not utf-8')
+
+    hourly = MagicMock()
+    thread = threading.Thread(target=Proxy.periodic, args=(failing, hourly, stop))
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    assert len(calls) == 3
+    hourly.assert_not_called()
+
+
+def test_periodic_runs_hourly_callback(monkeypatch):
+    import threading
+    monkeypatch.setattr(Proxy, 'periodic_interval', 0.01)
+    clock = [0.0]
+    monkeypatch.setattr('classes.Proxy.time.monotonic', lambda: clock[0])
+    stop = threading.Event()
+
+    def tick():
+        clock[0] += 1800
+
+    def hourly():
+        stop.set()
+
+    hourly_mock = MagicMock(side_effect=hourly)
+    thread = threading.Thread(target=Proxy.periodic, args=(tick, hourly_mock, stop))
+    thread.start()
+    thread.join(timeout=5)
+    assert not thread.is_alive()
+    hourly_mock.assert_called_once()
