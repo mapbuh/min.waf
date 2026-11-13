@@ -44,3 +44,16 @@ def test_bad_bot():
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) '
         'Chrome/58.0.3029.110 Safari/537.3'
     ) is False
+
+
+def test_clear_caches_drops_cached_verdicts():
+    config = Config("test.conf")
+    ua = 'CachedBot/1.0'
+
+    Bots.good_bot(config, ua)
+    Bots.clear_caches()
+    assert Bots.good_bot.cache_info().currsize == 0
+    assert Bots.bad_bot.cache_info().currsize == 0
+    # the caches work again after clearing
+    assert Bots.good_bot(config, ua) is False
+    assert Bots.good_bot.cache_info().currsize == 1
