@@ -52,15 +52,15 @@ class IDS:
         self._events: deque[tuple[float, str, str, int]] = deque()
 
     def __repr__(self) -> str:
-        res = ""
+        lines: list[str] = []
         with self._lock:
             self._expire_unlocked()
-            for path in self.path:
-                for host in self.path[path].hosts:
-                    for status in self.path[path].hosts[host].http_statuses:
-                        for line in self.path[path].hosts[host].http_statuses[status]:
-                            res += f"path: {path} host: {host} status: {status}\n    line: {line}\n"
-        return res
+            for path, data in self.path.items():
+                for host, host_data in data.hosts.items():
+                    for status, entries in host_data.http_statuses.items():
+                        for line in entries:
+                            lines.append(f"path: {path} host: {host} status: {status}\n    line: {line}\n")
+        return "".join(lines)
 
     def _expire_unlocked(self) -> None:
         cutoff = time.monotonic() - self.expiration_time
