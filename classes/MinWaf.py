@@ -140,7 +140,8 @@ class MinWaf:
         if config.config.get('main', 'ban_method') == 'iptables':
             IpTables.unban_expired(config, rts)
             return
-        ban_duration = config.config.getint('main', 'ban_duration', fallback=3600)
+        # both ban methods expire on main.ban_time
+        ban_duration = config.config.getint('main', 'ban_time')
         current_time = time.time()
         with rts._banned_ips_lock:
             ips_to_unban = [
