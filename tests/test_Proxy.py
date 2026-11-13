@@ -151,3 +151,27 @@ def test_close_after_response_keeps_upgrades_and_partial_heads():
     assert Proxy.close_after_response(upgrade) == upgrade
     partial = b'GET / HTTP/1.1\r\nConnection: keep-alive\r\n'
     assert Proxy.close_after_response(partial) == partial
+
+
+@pytest.mark.parametrize('response, status', [
+    (b'HTTP/1.1 200 OK\r\n', 200),
+    (b'HTTP/1.1 200\r\nContent-Length: 0\r\n\r\n', 200),  # no reason phrase
+    (b'HTTP/1.0 404\n', 404),
+    (b'HTTP/2 302 Found\r\n', 302),
+    (b'HTTP/1.1 abc OK\r\n', -1),
+    (b'garbage\r\n', -1),
+    (b'HTTP/1.1 200 OK', None),  # status line not complete yet
+    # interim responses are skipped until the final one arrives
+    (b'HTTP/1.1 100 Continue\r\n\r\n', None),
+    (b'HTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 201 Created\r\n', 201),
+    (b'HTTP/1.1 103 Early Hints\r\nLink: </a.css>\r\n\r\nHTTP/1.1 100 Continue\r\n\r\nHTTP/1.1 404 Not Found\r\n', 404),
+    (b'HTTP/1.1 101 Switching Protocols\r\n\r\n', 101),
+])
+def test_response_status(response, status):
+    assert Proxy.response_status(response) == status
+
+
+def test_response_status_gives_up_after_max_head():
+    from classes.ResponseInspector import ResponseInspector
+    response = b'HTTP/1.1 100 Continue\r\n' + b'X: y\r\n' * (ResponseInspector.max_head // 6 + 1)
+    assert Proxy.response_status(response) == -1

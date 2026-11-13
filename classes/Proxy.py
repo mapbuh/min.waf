@@ -24,6 +24,8 @@ class Proxy:
     _head_end = re.compile(rb'\r?\n\r?\n')
     _hop_header = re.compile(rb'^(connection|keep-alive|proxy-connection)[ \t]*:', re.IGNORECASE)
     _upgrade_header = re.compile(rb'^upgrade[ \t]*:', re.IGNORECASE | re.MULTILINE)
+    # the reason phrase is optional in practice: 'HTTP/1.1 200' is accepted
+    _status_line = re.compile(rb'HTTP/\d+(?:\.\d+)?[ \t]+(\d{3})(?:[ \t\r]|$)')
 
     def __init__(
         self,
@@ -201,27 +203,21 @@ class Proxy:
                                 upstream_socket.close()
                                 data = None
                                 break
-                            if not response_status:
+                            if response_status is None:
                                 response_whole += data
-                            if not response_status and response_whole and "\n" in response_whole.decode(errors='ignore'):
-                                first_line = response_whole.decode(errors='ignore').splitlines()[0]
-                                try:
-                                    _, response_status_str, _ = first_line.split(' ', 2)
-                                    response_status = int(response_status_str)
-                                except ValueError:
-                                    # Malformed response, treat as bad request
-                                    response_status = -1
-                                httpHeaders.http_status = response_status
-                                httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
-                                if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
-                                    self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                    self.log(httpHeaders, request_whole)
-                                    p.unregister(frontend_socket.fileno())
-                                    frontend_socket.close()
-                                    p.unregister(upstream_socket.fileno())
-                                    upstream_socket.close()
-                                    data = None
-                                    break
+                                response_status = Proxy.response_status(response_whole)
+                                if response_status is not None:
+                                    httpHeaders.http_status = response_status
+                                    httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
+                                    if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
+                                        self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
+                                        self.log(httpHeaders, request_whole)
+                                        p.unregister(frontend_socket.fileno())
+                                        frontend_socket.close()
+                                        p.unregister(upstream_socket.fileno())
+                                        upstream_socket.close()
+                                        data = None
+                                        break
                             clean, released = response_inspector.feed(data)
                             if not clean:
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
@@ -387,6 +383,32 @@ class Proxy:
                 upstream_socket.close()
             raise
         return upstream_socket
+
+    @staticmethod
+    def response_status(response: bytes) -> int | None:
+        """Returns the status of the final response, None until it has arrived.
+
+        Interim 1xx responses (100 Continue, 103 Early Hints) are skipped, so
+        the stats and triggers see the real status; 101 Switching Protocols is
+        final. A status line that cannot be parsed, or no final status within
+        ResponseInspector.max_head bytes, gives -1.
+        """
+        pos = 0
+        while True:
+            nl = response.find(b'\n', pos)
+            if nl == -1:
+                break
+            match = Proxy._status_line.match(response, pos, nl)
+            if not match:
+                return -1
+            status = int(match.group(1))
+            if not 100 <= status < 200 or status == 101:
+                return status
+            head_end = Proxy._head_end.search(response, pos)
+            if not head_end:
+                break
+            pos = head_end.end()
+        return -1 if len(response) > ResponseInspector.max_head else None
 
     @staticmethod
     def close_after_response(buffer: bytes) -> bytes:

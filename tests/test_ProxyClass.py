@@ -122,6 +122,24 @@ class TestMinProxy:
         assert received == [Proxy.close_after_response(request)]
         assert "1.2.3.4" in proxy.rts.banned_ips
 
+    def test_interim_response_is_not_the_status(self, proxy: Proxy, upstream, monkeypatch: pytest.MonkeyPatch):
+        port, received, responses = upstream
+        responses[0] = b'HTTP/1.1 100 Continue\r\n\r\n' + RESPONSE
+        seen = []
+        monkeypatch.setattr(
+            'classes.Proxy.Checks.headers_with_status',
+            lambda http_headers, *args: seen.append(http_headers.http_status) or True,
+        )
+        request = (
+            b'POST /index.php HTTP/1.1\r\n'
+            b'X-Real-IP: 1.2.3.4\r\n'
+            b'Host: example.com\r\n'
+            b'MinWaf-Dest: 127.0.0.1:%d\r\n'
+            b'\r\n' % port
+        )
+        assert self.handle(proxy, request) == responses[0]
+        assert seen == [200]
+
     def test_unreachable_upstream_closes_client(self, proxy: Proxy):
         request = (
             b'GET / HTTP/1.1\r\n'
