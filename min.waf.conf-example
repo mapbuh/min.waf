@@ -34,7 +34,7 @@ steal_total = 10
 # if ratio of stolen/available time is more than this, consider it stealing
 steal_ratio = 0.3
 
-static_files: =
+static_files =
     .css
     .eot
     .gif
