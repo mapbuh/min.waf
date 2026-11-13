@@ -17,11 +17,14 @@ class Config:
 
     def load(self) -> None:
         minwaf_path: str = os.path.dirname(os.path.realpath(__file__)) + "/.."
-        self.config = configparser.ConfigParser()
-        self.config.read(minwaf_path + "/defaults.conf")
-        self.config.read(self.filename)
+        config = configparser.ConfigParser()
+        config.read(minwaf_path + "/defaults.conf")
+        config.read(self.filename)
         if self.port:
-            self.apply_port(self.port)
+            self.apply_port(self.port, config)
+        # swap the fully loaded parser in one assignment so worker threads
+        # never observe a half-loaded config while a SIGHUP reload runs
+        self.config = config
         self.getlistint.cache_clear()
         self.harmful_patterns.cache_clear()
         self.longest_harmful_pattern.cache_clear()
@@ -29,16 +32,16 @@ class Config:
         self.whitelist_host_triggers.cache_clear()
         self.host_has_trigger.cache_clear()
 
-    def apply_port(self, port: int) -> None:
+    def apply_port(self, port: int, config: configparser.ConfigParser) -> None:
         """Run on another port than the config file says.
 
         Lets several instances share one config file: each one gets its own
         lockfile and iptables chain, so they don't stop or clear each other.
         """
-        self.config.set("main", "port", str(port))
-        root, ext = os.path.splitext(self.config.get("main", "lockfile"))
-        self.config.set("main", "lockfile", f"{root}-{port}{ext}")
-        self.config.set("main", "iptables_chain", f"{self.config.get('main', 'iptables_chain')}-{port}")
+        config.set("main", "port", str(port))
+        root, ext = os.path.splitext(config.get("main", "lockfile"))
+        config.set("main", "lockfile", f"{root}-{port}{ext}")
+        config.set("main", "iptables_chain", f"{config.get('main', 'iptables_chain')}-{port}")
 
     @property
     def mode_honeypot(self) -> bool:
