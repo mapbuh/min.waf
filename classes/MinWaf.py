@@ -1,4 +1,5 @@
 import atexit
+import fcntl
 import functools
 import logging
 import os
@@ -110,29 +111,26 @@ class MinWaf:
         logger.info(f"min.waf stopped after {time.time() - self.rts.start_time:.2f}s")
 
     def lockfile_remove(self) -> None:
-        if os.path.exists(self.config.config.get("main", "lockfile")):
-            os.remove(self.config.config.get("main", "lockfile"))
-
-    def check_pid(self, pid: int) -> bool:
-        """ Check For the existence of a unix pid. """
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        else:
-            return True
+        fd = getattr(self, "lockfile_fd", None)
+        if fd is not None:
+            self.lockfile_fd = None
+            os.close(fd)
 
     def lockfile_init(self) -> None:
-        if os.path.exists(self.config.config.get("main", "lockfile")):
-            with open(self.config.config.get("main", "lockfile"), "r") as f:
-                pid = f.read().strip()
-                if pid.isdigit() and self.check_pid(int(pid)):
-                    print(f"Lockfile {self.config.config.get('main', 'lockfile')} exists, "
-                          "another instance may be running. Exiting.")
-                    sys.exit(1)
-            self.lockfile_remove()
-        with open(self.config.config.get("main", "lockfile"), "w") as f:
-            f.write(str(os.getpid()))
+        """Hold an exclusive flock on the lockfile for the process lifetime.
+
+        The file itself stays on disk after exit (only the lock is
+        released), so a stale pid never blocks a restart and two instances
+        starting at the same time cannot both pass the check.
+        """
+        self.lockfile_fd = os.open(self.config.config.get("main", "lockfile"), os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(self.lockfile_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print(f"Lockfile {self.config.config.get('main', 'lockfile')} is held by another instance. Exiting.")
+            sys.exit(1)
+        os.ftruncate(self.lockfile_fd, 0)
+        os.write(self.lockfile_fd, str(os.getpid()).encode())
 
     @staticmethod
     def unban_expired(
