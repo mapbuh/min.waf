@@ -133,3 +133,24 @@ def test_stats_ban_logs_once_with_details(config, rts, caplog, stats, reason):
     assert not Checks.headers_with_status(headers, config, rts)
     Proxy.ban(headers.ip, rts, config, headers.ban_reason)
     assert caplog.messages == [f'203.0.113.10 banned; {reason}']
+
+
+@pytest.mark.parametrize('head,body', [
+    (b"GET /.env HTTP/1.1\r\nhost: example.com\r\n\r\n", b'crlf body'),
+    (b"GET /.env HTTP/1.1\nhost: example.com\n\n", b'lf body'),
+])
+def test_log_contents_handles_both_head_endings(config, tmp_path, head, body):
+    # read_headers accepts a bare-LF head end, logging must not crash on it
+    requests_log = tmp_path / 'requests.log'
+    contents_log = tmp_path / 'contents.log'
+    config.config.set('log', 'requests', str(requests_log))
+    config.config.set('log', 'contents', str(contents_log))
+    headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/.env', http_status=404)
+    headers.status = HttpHeaders.STATUS_BAD
+    proxy = Proxy.__new__(Proxy)
+    proxy.config = config
+
+    proxy.log(headers, head + body)
+
+    assert requests_log.read_text() == '/.env\n'
+    assert contents_log.read_text() == body.decode() + '\n===\n'
