@@ -31,58 +31,6 @@ class IpTables:
         subprocess.run(["ip6tables", "-I", "INPUT", "-j", config.config.get('main', 'iptables_chain')])
 
     @staticmethod
-    def slow(ip_address: str, config: Config, rts: RunTimeStats):
-        with rts._banned_ips_lock:
-            if ip_address in rts.banned_ips:
-                rts.banned_ips[ip_address] = time.time()
-                return
-            rts.banned_ips[ip_address] = time.time()
-        if ":" in ip_address:
-            subprocess.run([
-                "ip6tables",
-                "-A",
-                config.config.get('main', 'iptables_chain'),
-                "-s",
-                ip_address,
-                "-p",
-                "tcp",
-                "--dport",
-                "80",
-                "-j",
-                "TARPIT",
-            ])
-            subprocess.run([
-                "ip6tables",
-                "-A",
-                config.config.get('main', 'iptables_chain'),
-                "-s",
-                ip_address,
-                "-p",
-                "tcp",
-                "--dport",
-                "443",
-                "-j",
-                "TARPIT"
-            ])
-            return
-        subprocess.run([
-            "iptables",
-            "-A", config.config.get('main', 'iptables_chain'),
-            "-s", ip_address,
-            "-p", "tcp",
-            "--dport", "80",
-            "-j", "TARPIT",
-        ])
-        subprocess.run([
-            "iptables",
-            "-A", config.config.get('main', 'iptables_chain'),
-            "-s", ip_address,
-            "-p", "tcp",
-            "--dport", "443",
-            "-j", "TARPIT",
-        ])
-
-    @staticmethod
     def ban(
         ip_address: str,
         rts: RunTimeStats,

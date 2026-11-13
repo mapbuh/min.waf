@@ -22,26 +22,6 @@ def test_clear_and_init(monkeypatch: pytest.MonkeyPatch):
     assert any("iptables" in c[0] or "ip6tables" in c[0] for c in calls)
 
 
-def test_slow_ipv4(monkeypatch: pytest.MonkeyPatch):
-    calls = []
-    monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = Config("test.conf")
-    rts = DummyRunTimeStats()
-    IpTables.slow("1.2.3.4", config, rts)
-    assert "1.2.3.4" in rts.banned_ips
-    assert any("iptables" in c[0] for c in calls)
-
-
-def test_slow_ipv6(monkeypatch: pytest.MonkeyPatch):
-    calls = []
-    monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
-    config = Config("test.conf")
-    rts = DummyRunTimeStats()
-    IpTables.slow("abcd::1234", config, rts)
-    assert "abcd::1234" in rts.banned_ips
-    assert any("ip6tables" in c[0] for c in calls)
-
-
 def test_ban(monkeypatch: pytest.MonkeyPatch):
     calls = []
     monkeypatch.setattr("subprocess.run", lambda args, **kwargs: calls.append(args))
