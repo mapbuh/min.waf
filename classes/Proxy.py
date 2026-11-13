@@ -111,6 +111,8 @@ class Proxy:
         response_status: int | None = None
         response_whole: bytes = b''
         response_inspector = ResponseInspector(self.config, httpHeaders)
+        max_inspect_size = self.config.config.getint("main", "max_inspect_size")
+        idle_timeout = self.config.config.getfloat("main", "connection_idle_timeout", fallback=60)
         with select.epoll() as p:
             if len(upstream_buffer) > 0:
                 p.register(frontend_socket, select.POLLIN | select.POLLOUT)
@@ -124,7 +126,7 @@ class Proxy:
             while True:
                 if frontend_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                     break
-                events = p.poll(self.config.config.getfloat("main", "connection_idle_timeout", fallback=60))
+                events = p.poll(idle_timeout)
                 if not events:
                     return
                 for fd, event in events:
@@ -145,7 +147,6 @@ class Proxy:
                                 self.log(httpHeaders, request_whole)
                                 break
                             frontend_buffer += data
-                            max_inspect_size = self.config.config.getint("main", "max_inspect_size")
                             if len(request_whole) < max_inspect_size:
                                 request_whole += data
                             if not inspector.feed(data):
@@ -253,6 +254,7 @@ class Proxy:
         frontend_buffer: bytes,
         request_whole: bytes
     ) -> None:
+        max_inspect_size = self.config.config.getint("main", "max_inspect_size")
         with select.epoll() as p:
             p.register(frontend_socket, select.POLLIN)
             bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
@@ -272,9 +274,9 @@ class Proxy:
                                 frontend_socket.close()
                                 break
                             frontend_buffer += data
-                            if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+                            if len(request_whole) < max_inspect_size:
                                 request_whole += data
-                                if len(request_whole) >= self.config.config.getint("main", "max_inspect_size"):
+                                if len(request_whole) >= max_inspect_size:
                                     self.log(httpHeaders, request_whole)
                                     frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
                                     frontend_socket.close()
@@ -282,7 +284,7 @@ class Proxy:
                     if event & (select.POLLHUP | select.POLLERR):
                         if fd == frontend_socket.fileno():
                             frontend_socket.close()
-        if len(request_whole) < self.config.config.getint("main", "max_inspect_size"):
+        if len(request_whole) < max_inspect_size:
             self.log(httpHeaders, request_whole)
 
     def parse_headers(self, frontend_socket: socket.socket, buffer: bytes) -> HttpHeaders:
