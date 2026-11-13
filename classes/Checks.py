@@ -49,9 +49,10 @@ class Checks:
             httpHeaders.ban_reason = f"Bad bot detected: {httpHeaders.ua}"
             httpHeaders.status = HttpHeaders.STATUS_BAD
             return False
-        if httpHeaders.path.endswith(tuple(config.getlist('main', 'static_files'))):
-            httpHeaders.status = HttpHeaders.STATUS_GOOD
-            return True
+        # static files only stay out of the ban statistics: their content is
+        # still inspected, and the query string must not make a path static
+        if httpHeaders.path.split('?', 1)[0].endswith(tuple(config.getlist('main', 'static_files'))):
+            httpHeaders.skip_stats = True
         if config.config.getboolean("main", "inspect_packets"):
             path_lower = urllib.parse.unquote(httpHeaders.path).lower()
             for signature in config.harmful_patterns():
@@ -77,6 +78,8 @@ class Checks:
             )
         ):
             httpHeaders.status = HttpHeaders.STATUS_GOOD
+            return True
+        if httpHeaders.skip_stats:
             return True
         if not Checks.process_http_request(config, rts, httpHeaders):
             httpHeaders.status = HttpHeaders.STATUS_BAD

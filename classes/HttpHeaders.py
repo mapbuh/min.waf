@@ -36,4 +36,6 @@ class HttpHeaders:
         self.status: int = self.STATUS_NEUTRAL
         self.ban_reason: str = ""
         self.logged: bool = False
+        # exempt from the ban statistics, but still inspected
+        self.skip_stats: bool = False
         self.upstream_response_time: float = upstream_response_time or 0.0

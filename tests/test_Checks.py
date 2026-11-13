@@ -314,3 +314,37 @@ def test_bad_steal_ratio(
         ))
     assert ip_data.used_time90 > 5
     assert Checks.bad_steal_ratio(config, ip_data) is True
+
+
+def test_static_files_are_still_inspected(config: Config, rts: RunTimeStats) -> None:
+    # a static suffix in the query string does not make a path static
+    http_headers = clean_http_headers()
+    http_headers.path = "/x.php?a=.css"
+    assert Checks.headers(http_headers, config, rts) is True
+    assert http_headers.skip_stats is False
+
+    # a static file skips the ban statistics but its content is inspected
+    http_headers = clean_http_headers()
+    http_headers.path = "/image.jpeg?v=1"
+    assert Checks.headers(http_headers, config, rts) is True
+    assert http_headers.skip_stats is True
+    assert http_headers.status == HttpHeaders.STATUS_NEUTRAL
+    assert Checks.content(config, http_headers, b"<script>exec()</script>", 0) == (False, 0)
+
+    # and a harmful signature in its path is still caught
+    http_headers = clean_http_headers()
+    http_headers.path = "/exec(.jpeg"
+    assert Checks.headers(http_headers, config, rts) is False
+
+
+def test_static_files_skip_stats(monkeypatch: pytest.MonkeyPatch, config: Config, rts: RunTimeStats) -> None:
+    monkeypatch.setattr(Checks, "process_http_request", lambda *args: False)
+    http_headers = clean_http_headers()
+    http_headers.path = "/image.jpeg"
+    http_headers.http_status = 404
+    assert Checks.headers(http_headers, config, rts) is True
+    assert Checks.headers_with_status(http_headers, config, rts) is True
+    http_headers = clean_http_headers()
+    http_headers.http_status = 404
+    assert Checks.headers(http_headers, config, rts) is True
+    assert Checks.headers_with_status(http_headers, config, rts) is False
