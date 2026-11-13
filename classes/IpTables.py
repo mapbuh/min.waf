@@ -79,47 +79,25 @@ class IpTables:
 
     @staticmethod
     def unban_expired(config: Config, rts: RunTimeStats) -> None:
+        ban_time = config.config.getint('main', 'ban_time')
+        chain = config.config.get('main', 'iptables_chain')
         current_time = time.time()
+        # only the bookkeeping runs under the lock; the iptables calls take a
+        # few ms each and would hold up every request checking for bans
         with rts._banned_ips_lock:
-            ips_to_unban = [
-                ip for ip in list(rts.banned_ips.keys())
-                if current_time - rts.banned_ips[ip] > config.config.getint('main', 'ban_time')
-            ]
-        for ip in ips_to_unban:
-            with rts._banned_ips_lock:
-                if ip in rts.banned_ips:
-                    del rts.banned_ips[ip]
-                if ":" in ip:
-                    subprocess.run([
-                        "ip6tables",
-                        "-D", config.config.get('main', 'iptables_chain'),
-                        "-s", ip,
-                        "-p", "tcp",
-                        "--dport", "80",
-                        "-j", "DROP",
-                    ])
-                    subprocess.run([
-                        "ip6tables",
-                        "-D", config.config.get('main', 'iptables_chain'),
-                        "-s", ip,
-                        "-p", "tcp",
-                        "--dport", "443",
-                        "-j", "DROP",
-                    ])
-                else:
-                    subprocess.run([
-                        "iptables",
-                        "-D", config.config.get('main', 'iptables_chain'),
-                        "-s", ip,
-                        "-p", "tcp",
-                        "--dport", "80",
-                        "-j", "DROP",
-                    ])
-                    subprocess.run([
-                        "iptables",
-                        "-D", config.config.get('main', 'iptables_chain'),
-                        "-s", ip,
-                        "-p", "tcp",
-                        "--dport", "443",
-                        "-j", "DROP",
-                    ])
+            expired = [ip for ip, banned_at in rts.banned_ips.items() if current_time - banned_at > ban_time]
+            for ip in expired:
+                del rts.banned_ips[ip]
+        # a ban of the same IP in the meantime appends its own rules, and -D
+        # removes one matching rule, so the new ban keeps its rules
+        for ip in expired:
+            command = "ip6tables" if ":" in ip else "iptables"
+            for port in ("80", "443"):
+                subprocess.run([
+                    command,
+                    "-D", chain,
+                    "-s", ip,
+                    "-p", "tcp",
+                    "--dport", port,
+                    "-j", "DROP",
+                ])
