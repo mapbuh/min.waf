@@ -177,11 +177,11 @@ class Proxy:
                                 first_line = response_whole.decode(errors='ignore').splitlines()[0]
                                 try:
                                     _, response_status_str, _ = first_line.split(' ', 2)
+                                    response_status = int(response_status_str)
                                 except ValueError:
                                     # Malformed response, treat as bad request
-                                    response_status_str = '-1'
-                                response_status = int(response_status_str)
-                                httpHeaders.http_status = int(response_status_str)
+                                    response_status = -1
+                                httpHeaders.http_status = response_status
                                 httpHeaders.upstream_response_time = time.time() - httpHeaders.ts
                                 if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                     self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)

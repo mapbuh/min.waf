@@ -107,6 +107,25 @@ def test_buffered_response_delivered_before_close(proxy, monkeypatch):
         assert upstream.fileno() == -1
 
 
+def test_malformed_status_line_relayed_without_traceback(proxy, monkeypatch, caplog):
+    # a non-numeric upstream status must not kill the relay with an exception
+    frontend, client = socket.socketpair()
+    upstream, server = socket.socketpair()
+    with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=1) as executor:
+        upstream.setblocking(False)
+        prepare_handler(proxy, monkeypatch, frontend, upstream)
+        response = b'HTTP/1.1 WTF NOT FOUND\r\nContent-Length: 2\r\n\r\nhi'
+        server.sendall(response)
+        server.shutdown(socket.SHUT_WR)
+        future = executor.submit(proxy.proxy_handle_client, frontend, ('local', 0))
+        received = b''
+        while chunk := client.recv(8192):
+            received += chunk
+        future.result(timeout=1)
+        assert 'Error handling connection' not in caplog.text
+        assert upstream.fileno() == -1
+
+
 @pytest.mark.parametrize('failure', [TimeoutError(), socket.gaierror(), OSError('unreachable')])
 def test_connect_failure_closes_socket(proxy, monkeypatch, failure):
     upstream = MagicMock()
