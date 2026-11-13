@@ -80,3 +80,22 @@ def test_config_no_port_override():
     assert config.config.getint("main", "port") == 9009
     assert config.config.get("main", "lockfile") == "/var/run/min.waf.pid"
     assert config.config.get("main", "iptables_chain") == "MINWAF"
+
+
+def test_whitelist_bot_retries_soon_without_ranges(monkeypatch: pytest.MonkeyPatch):
+    # a cold cache returns nothing while the download runs in the background;
+    # the bots must be retried within a minute, not at the next hourly refresh
+    data: list[dict] = [{}]
+    monkeypatch.setattr("classes.Config.Utils.requests_get_cached_json", lambda url, **kwargs: data[0])
+    now = [1000.0]
+    monkeypatch.setattr("classes.Config.time.time", lambda: now[0])
+    bot_whitelist = BotWhitelist(Config("test.conf"))
+    assert bot_whitelist.next_load == 1000.0 + BotWhitelist.retry_time
+    data[0] = ranges("66.249.64.0/27")
+    bot_whitelist.refresh()  # not due yet
+    assert not bot_whitelist.check("Googlebot", "66.249.64.1")
+    now[0] += BotWhitelist.retry_time
+    bot_whitelist.refresh()
+    assert bot_whitelist.check("Googlebot", "66.249.64.1")
+    # every bot loaded: back to the hourly refresh
+    assert bot_whitelist.next_load == now[0] + BotWhitelist.refresh_time

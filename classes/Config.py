@@ -4,6 +4,7 @@ import ipaddress
 import logging
 import os
 import random
+import time
 
 from classes.Utils import Utils
 
@@ -103,8 +104,14 @@ class Config:
 
 
 class BotWhitelist:
+    # reload interval, in seconds; the downloaded ranges are cached for a day
+    refresh_time: int = 3600
+    # retry interval while a bot has no ranges yet (e.g. a cold cache), in seconds
+    retry_time: int = 60
+
     def __init__(self, config: Config) -> None:
         self.config: Config = config
+        self.next_load: float = 0.0
         self.whitelist: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
         self.whitelist_lower: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
         self.whitelist_cache: dict[str, dict[str, str]] = {}
@@ -118,6 +125,7 @@ class BotWhitelist:
                 bot_sections.append(section)
 
         whitelist_bots_list: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
+        missing = False
         for section in bot_sections:
             if (
                 self.config.config.get(section, 'action') == 'allow'
@@ -148,6 +156,11 @@ class BotWhitelist:
                 previous = getattr(self, 'whitelist', {})
                 if user_agent not in whitelist_bots_list and user_agent in previous:
                     whitelist_bots_list[user_agent] = previous[user_agent]
+                if user_agent not in whitelist_bots_list:
+                    missing = True
+        # the download runs in the background on a cold cache, so a bot
+        # without ranges is retried soon instead of at the next hourly refresh
+        self.next_load = time.time() + (BotWhitelist.retry_time if missing else BotWhitelist.refresh_time)
         self.whitelist = whitelist_bots_list
         # lowered bot names once per load instead of per request
         lowered: dict[str, list[ipaddress.IPv4Network | ipaddress.IPv6Network]] = {}
@@ -156,6 +169,11 @@ class BotWhitelist:
         self.whitelist_lower = lowered
         self.whitelist_cache = {}
         return whitelist_bots_list
+
+    def refresh(self) -> None:
+        """Reload the ranges when the refresh or retry time has come."""
+        if time.time() >= self.next_load:
+            self.load()
 
     def check(self, user_agent: str, ip: str) -> bool:
         if not ip:

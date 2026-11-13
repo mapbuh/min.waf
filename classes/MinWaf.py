@@ -40,9 +40,9 @@ class MinWaf:
         self.rts.inter_domain.expire()
         self.unban_expired(self.config, self.rts)
         self.rts.ip_blacklist.load()
+        self.config.bot_whitelist.refresh()
 
     def every_1_hour(self) -> None:
-        self.config.bot_whitelist.load()
         PrintStats.log_stats(self.rts)
         self.print_memory_usage()
         self.print_cache_stats()
