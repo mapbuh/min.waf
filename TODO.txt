@@ -1,3 +1,5 @@
+- requests after the first on a keep-alive or pipelined connection are relayed without the header checks, stats and known-attack bans (only the first request on a connection goes through Checks.headers); nginx defaults to one connection per request so this does not bite today, but it must be fixed before enabling upstream keepalive
+
 - use captcha before blocking
 - fork on external blacklist update
 - honeypot mode. Instead of banning with ipchains, ban manually and log all requests from banned ips
