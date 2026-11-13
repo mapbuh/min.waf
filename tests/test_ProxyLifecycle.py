@@ -134,6 +134,9 @@ def test_client_data_while_draining_upstream_close(proxy, monkeypatch):
     with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=1) as executor:
         upstream.setblocking(False)
         prepare_handler(proxy, monkeypatch, frontend, upstream)
+        # the client only starts reading after sending; under load that takes
+        # longer than the fixture's 20 ms idle timeout, which ends the relay
+        proxy.config.config.set('main', 'connection_idle_timeout', '5')
         body = b'x' * (8 * 1024 * 1024)  # bigger than socket buffers, so draining stalls
         response = b'HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n' % len(body) + body
         future = executor.submit(proxy.proxy_handle_client, frontend, ('local', 0))
