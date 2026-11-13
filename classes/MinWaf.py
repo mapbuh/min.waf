@@ -54,6 +54,7 @@ class MinWaf:
                 "bots_good_bot": Bots.good_bot.cache_info(),
                 "config_getlistint": self.config.getlistint.cache_info(),
                 "config_harmful_patterns": self.config.harmful_patterns.cache_info(),
+                "config_harmful_patterns_encoded": self.config.harmful_patterns_encoded.cache_info(),
                 "config_host_has_trigger": self.config.host_has_trigger.cache_info(),
                 "config_longest_harmful_pattern": self.config.longest_harmful_pattern.cache_info(),
                 "config_whitelist_host_triggers": self.config.whitelist_host_triggers.cache_info(),

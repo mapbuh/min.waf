@@ -53,8 +53,9 @@ class Checks:
             httpHeaders.status = HttpHeaders.STATUS_GOOD
             return True
         if config.config.getboolean("main", "inspect_packets"):
+            path_lower = urllib.parse.unquote(httpHeaders.path).lower()
             for signature in config.harmful_patterns():
-                if signature.lower() in urllib.parse.unquote(httpHeaders.path).lower():
+                if signature.lower() in path_lower:
                     httpHeaders.ban_reason = f"Harmful signature detected in URL: {signature}"
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
@@ -96,9 +97,9 @@ class Checks:
         dirty_data_from: int = clean_upto - config.longest_harmful_pattern() + 1
         if dirty_data_from < 0:
             dirty_data_from = 0
-        dirty_data = buffer[dirty_data_from:]
-        for signature in config.harmful_patterns():
-            if signature.encode().lower() in dirty_data.lower():
+        dirty_data = buffer[dirty_data_from:].lower()
+        for signature, encoded in zip(config.harmful_patterns(), config.harmful_patterns_encoded()):
+            if encoded in dirty_data:
                 httpHeaders.ban_reason = f"Harmful signature detected in content: {signature}"
                 httpHeaders.status = HttpHeaders.STATUS_BAD
                 return False, clean_upto
@@ -113,16 +114,21 @@ class Checks:
             return False
         if not config.config.getboolean('main', 'inspect_packets'):
             return True
+        patterns = list(zip(config.harmful_patterns(), config.harmful_patterns_encoded()))
+        upload_filenames = [
+            (name, name.encode().lower())
+            for name in config.getlist('signatures', 'upload_filenames')
+        ]
         for part_header in part_headers:
             part_header = part_header.lower()
-            for signature in config.harmful_patterns():
-                if signature.encode().lower() in part_header:
+            for signature, encoded in patterns:
+                if encoded in part_header:
                     httpHeaders.ban_reason = f"Harmful signature detected in multipart header: {signature}"
                     httpHeaders.status = HttpHeaders.STATUS_BAD
                     return False
             for filename in MultipartCounter.filenames(part_header):
-                for signature in config.getlist('signatures', 'upload_filenames'):
-                    if signature.encode().lower() in filename:
+                for signature, encoded in upload_filenames:
+                    if encoded in filename:
                         httpHeaders.ban_reason = f"Harmful signature detected in upload filename: {signature}"
                         httpHeaders.status = HttpHeaders.STATUS_BAD
                         return False

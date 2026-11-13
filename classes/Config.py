@@ -27,6 +27,7 @@ class Config:
         self.config = config
         self.getlistint.cache_clear()
         self.harmful_patterns.cache_clear()
+        self.harmful_patterns_encoded.cache_clear()
         self.longest_harmful_pattern.cache_clear()
         self.whitelist_triggers.cache_clear()
         self.whitelist_host_triggers.cache_clear()
@@ -60,6 +61,11 @@ class Config:
         php_injections = self.getlist('signatures', 'php_injections')
         node_injections = self.getlist('signatures', 'node_injections')
         return sql_injections + php_injections + node_injections
+
+    @functools.lru_cache()
+    def harmful_patterns_encoded(self) -> list[bytes]:
+        """Harmful signatures pre-encoded and lowercased for the streaming checks."""
+        return [pattern.encode().lower() for pattern in self.harmful_patterns()]
 
     @functools.lru_cache()
     def longest_harmful_pattern(self) -> int:
