@@ -16,23 +16,25 @@ class IpWhitelist:
 
     def is_whitelisted(self, host: str, ip: str) -> bool:
         logger = logging.getLogger("min.waf")
-        for net in self.config.getlist('main', 'whitelist'):
-            try:
-                if ipaddress.ip_address(ip) in ipaddress.ip_network(net):
-                    if self.config.config.getboolean('log', 'whitelist'):
-                        logger.debug(f"{ip} permanent whitelist match in {net}")
-                    return True
-            except ValueError as err:
-                logger.warning(f"Whitelist checking {ip} {err=}")
         try:
-            if host in self.whitelist:
-                if ip in self.whitelist[host].values():
-                    self.whitelist[host].touch(ip)
-                    if self.config.config.getboolean('log', 'whitelist'):
-                        logger.debug(f"{ip} found in temporary whitelist for host {host}")
-                    return True
-        except ValueError as err:
-            logger.warning(f"Whitelist checking {ip} {err=}")
+            addr = ipaddress.ip_address(ip)
+        except ValueError:
+            addr = None
+        if addr is not None:
+            for net in self.config.getlist('main', 'whitelist'):
+                try:
+                    if addr in ipaddress.ip_network(net):
+                        if self.config.config.getboolean('log', 'whitelist'):
+                            logger.debug(f"{ip} permanent whitelist match in {net}")
+                        return True
+                except ValueError as err:
+                    logger.warning(f"Whitelist checking {ip} {err=}")
+        if host in self.whitelist:
+            if ip in self.whitelist[host].values():
+                self.whitelist[host].touch(ip)
+                if self.config.config.getboolean('log', 'whitelist'):
+                    logger.debug(f"{ip} found in temporary whitelist for host {host}")
+                return True
         return False
 
     def is_trigger(self, host: str, ip: str, path: str, http_status: int) -> bool:

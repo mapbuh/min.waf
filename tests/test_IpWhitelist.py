@@ -17,6 +17,18 @@ def test_is_whitelisted(config: Config):
     assert not ipw.is_whitelisted("host", "1.2.3.4")
 
 
+def test_invalid_ip_is_not_whitelisted_and_warns_once(config, caplog):
+    # a missing or malformed client IP must not log one warning per
+    # configured whitelist network on every request
+    import logging
+    ipw = IpWhitelist(config)
+    caplog.set_level(logging.WARNING, logger='min.waf')
+
+    assert not ipw.is_whitelisted("host", "")
+    assert not ipw.is_whitelisted("host", "not-an-ip")
+    assert caplog.messages == []
+
+
 def test_is_trigger(config: Config):
     ipw = IpWhitelist(config)
     result = ipw.is_trigger("example.com", "5.6.7.8", "/trigger-123", 200)
