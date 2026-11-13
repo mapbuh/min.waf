@@ -232,8 +232,14 @@ class Checks:
 
     @staticmethod
     def bad_steal_ratio(config: Config, ip_data: IpData) -> bool:
+        steal_total = config.config.getint('main', 'steal_total')
+        # stealing needs used_time90 > avail_time + steal_total, and used_time90
+        # never exceeds total_time: this skips the 90th percentile sort for
+        # almost every request
+        if ip_data.total_time <= ip_data.avail_time + steal_total:
+            return False
         return (
-            ip_data.steal_time < (-config.config.getint('main', 'steal_total'))
+            ip_data.steal_time < -steal_total
             and ip_data.avail_time > config.config.getint('main', 'steal_over_time')
             and ip_data.steal_ratio > config.config.getfloat('main', 'steal_ratio')
         )

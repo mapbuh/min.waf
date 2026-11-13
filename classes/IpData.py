@@ -38,7 +38,9 @@ class IpData:
     @property
     def avail_time(self) -> int:
         '''Available time window in seconds'''
-        ts_values = self._log_lines.get_values_by_key("ts")
+        # read the attribute directly: get_values_by_key checks the type of
+        # every entry, which made this the most expensive per-request step
+        ts_values = [line.ts for line in self._log_lines.values()]
         if not ts_values:
             return 1
         res = max(ts_values) - min(ts_values)
@@ -50,12 +52,12 @@ class IpData:
 
     @property
     def total_time(self) -> float:
-        return sum(self._log_lines.get_values_by_key("upstream_response_time"))
+        return sum(line.upstream_response_time for line in self._log_lines.values())
 
     @property
     def used_time90(self) -> float:
         '''Total upstream response time at 90th percentile'''
-        times = sorted(self._log_lines.get_values_by_key("upstream_response_time"))
+        times = sorted(line.upstream_response_time for line in self._log_lines.values())
         if not times:
             return 0.0
         index_90 = int(len(times) * 0.9) - 1

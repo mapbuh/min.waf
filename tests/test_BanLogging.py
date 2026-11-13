@@ -104,7 +104,7 @@ def test_response_rejection_reason(config, rts, caplog):
     config.config.set('main', 'ua_stats', 'False')
     rts.ip_stats = Mock()
     rts.ip_stats.get_or_create.return_value = SimpleNamespace(
-        log_lines=Mock(), http_status_bad=0, steal_time=0,
+        log_lines=Mock(), http_status_bad=0, steal_time=0, total_time=0, avail_time=1,
     )
     caplog.set_level(logging.INFO, logger='min.waf')
 
