@@ -1,3 +1,4 @@
+import time
 import select
 import socket
 from concurrent.futures import ThreadPoolExecutor
@@ -18,6 +19,9 @@ def proxy(monkeypatch):
     instance.config = Config('test.conf')
     instance.config.config.set('main', 'connection_idle_timeout', '0.02')
     instance.rts = MagicMock()
+    # the test clients do not close after the response, so the lingering
+    # close would wait its full time
+    monkeypatch.setattr(Proxy, 'linger_time', 0.1)
     return instance
 
 
@@ -131,25 +135,65 @@ def test_client_data_while_draining_upstream_close(proxy, monkeypatch):
     # after the upstream closed; that must not touch the closed upstream fd
     frontend, client = socket.socketpair()
     upstream, server = socket.socketpair()
-    with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=1) as executor:
+    with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=3) as executor:
         upstream.setblocking(False)
         prepare_handler(proxy, monkeypatch, frontend, upstream)
-        # the client only starts reading after sending; under load that takes
-        # longer than the fixture's 20 ms idle timeout, which ends the relay
         proxy.config.config.set('main', 'connection_idle_timeout', '5')
         body = b'x' * (8 * 1024 * 1024)  # bigger than socket buffers, so draining stalls
         response = b'HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n' % len(body) + body
         future = executor.submit(proxy.proxy_handle_client, frontend, ('local', 0))
-        server.sendall(response)
-        client.sendall(b'GET /more HTTP/1.1\r\n' * 50000)  # keep client data pending past the upstream EOF
-        server.shutdown(socket.SHUT_WR)
+
+        def serve():
+            server.sendall(response)
+            server.shutdown(socket.SHUT_WR)
+
+        def keep_sending():
+            # client data pending past the upstream EOF; the relay reads and
+            # drops it once the upstream is closed, and closes the client
+            # after the response, which may cut this send short
+            try:
+                client.sendall(b'GET /more HTTP/1.1\r\n' * 50000)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+
+        served = executor.submit(serve)
+        sending = executor.submit(keep_sending)
         received = b''
-        client.settimeout(1)
+        client.settimeout(5)
         while chunk := client.recv(8192):
             received += chunk
-        future.result(timeout=1)
+        served.result(timeout=5)
+        future.result(timeout=5)
+        sending.result(timeout=5)
         assert received == response
         assert upstream.fileno() == -1
+
+
+def test_relay_buffers_at_most_max_buffer(proxy, monkeypatch):
+    # a fast upstream and a client that does not read: the relay stops
+    # reading the upstream instead of holding the whole response in memory
+    frontend, client = socket.socketpair()
+    upstream, server = socket.socketpair()
+    with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=2) as executor:
+        upstream.setblocking(False)
+        server.setblocking(False)
+        prepare_handler(proxy, monkeypatch, frontend, upstream)
+        proxy.config.config.set('main', 'connection_idle_timeout', '0.5')
+        monkeypatch.setattr(Proxy, 'max_buffer', 64 * 1024)
+        future = executor.submit(proxy.proxy_handle_client, frontend, ('local', 0))
+        pushed = server.send(b'HTTP/1.1 200 OK\r\n\r\n')
+        chunk = b'x' * 65536
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            try:
+                pushed += server.send(chunk)
+            except BlockingIOError:
+                time.sleep(0.05)
+            except BrokenPipeError:
+                break  # the relay ended on the idle timeout
+        future.result(timeout=5)  # ends on the idle timeout
+        # the upstream could push socket buffers plus max_buffer, not everything
+        assert pushed < 32 * 1024 * 1024
 
 
 @pytest.mark.parametrize('failure', [TimeoutError(), socket.gaierror(), OSError('unreachable')])
@@ -196,13 +240,24 @@ def test_temporary_write_backpressure_preserves_response(proxy, monkeypatch):
     frontend, upstream = MagicMock(), MagicMock()
     frontend.fileno.return_value = 10
     upstream.fileno.return_value = 11
-    frontend.send.side_effect = [BlockingIOError(), len(b'response')]
+    results = [BlockingIOError(), len(b'response')]
+    sent = []
+
+    def send(data):
+        # the relay buffer is a bytearray emptied after the send: keep a copy
+        sent.append(bytes(data))
+        result = results.pop(0)
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    frontend.send.side_effect = send
     poller = MagicMock()
     poller.__enter__.return_value = poller
     poller.poll.side_effect = [[(10, select.POLLOUT)], [(10, select.POLLOUT)], []]
     monkeypatch.setattr('classes.Proxy.select.epoll', lambda: poller)
     proxy.forward(HttpHeaders(), frontend, b'', upstream, b'response', b'', RequestInspector(proxy.config, HttpHeaders()))
-    assert [call.args for call in frontend.send.call_args_list] == [(b'response',), (b'response',)]
+    assert sent == [b'response', b'response']
 
 
 def test_periodic_callbacks_survive_failures(monkeypatch):
@@ -246,3 +301,16 @@ def test_periodic_runs_hourly_callback(monkeypatch):
     thread.join(timeout=5)
     assert not thread.is_alive()
     hourly_mock.assert_called_once()
+
+
+def test_linger_close_drains_client_data_before_closing():
+    # closing with unread client data would send a reset, which can make the
+    # client drop the end of the response
+    sock, peer = socket.socketpair()
+    with peer:
+        sock.setblocking(False)
+        peer.sendall(b'late client data')
+        peer.shutdown(socket.SHUT_WR)
+        Proxy.linger_close(sock)
+        assert sock.fileno() == -1
+        assert peer.recv(10) == b''  # a normal close, not a reset

@@ -20,6 +20,8 @@ from classes.RunTimeStats import RunTimeStats
 class Proxy:
 
     buffer_size: int = 8192  # 8 KB
+    # stop reading a side while this much of its data waits for the other side
+    max_buffer: int = 262144  # 256 KB
 
     _head_end = re.compile(rb'\r?\n\r?\n')
     _hop_header = re.compile(rb'^(connection|keep-alive|proxy-connection)[ \t]*:', re.IGNORECASE)
@@ -143,19 +145,33 @@ class Proxy:
         response_inspector = ResponseInspector(self.config, httpHeaders)
         max_inspect_size = self.config.config.getint("main", "max_inspect_size")
         idle_timeout = self.config.config.getfloat("main", "connection_idle_timeout", fallback=60)
+        # bytearrays drop sent bytes from the front without copying the rest
+        to_upstream = bytearray(frontend_buffer)
+        to_frontend = bytearray(upstream_buffer)
         with select.epoll() as p:
-            if len(upstream_buffer) > 0:
-                p.register(frontend_socket, select.POLLIN | select.POLLOUT)
-            else:
-                p.register(frontend_socket, select.POLLIN)
-            if len(frontend_buffer) > 0:
-                p.register(upstream_socket, select.POLLIN | select.POLLOUT)
-            else:
-                p.register(upstream_socket, select.POLLIN)
+            masks: dict[int, int] = {}
+
+            def watch(sock: socket.socket, pending_out: bytearray, pending_in: bytearray, peer: socket.socket) -> None:
+                # read a side only while what it sends the other way is below
+                # max_buffer, so a fast peer cannot fill the memory while the
+                # other one is slow; once the peer is closed, reading goes on
+                # to notice the close; write while there is something to send
+                fd = sock.fileno()
+                if fd == -1:
+                    return
+                readable = len(pending_in) < Proxy.max_buffer or peer.fileno() == -1
+                mask = (select.POLLIN if readable else 0) | (select.POLLOUT if pending_out else 0)
+                if fd not in masks:
+                    p.register(fd, mask)
+                elif masks[fd] != mask:
+                    p.modify(fd, mask)
+                masks[fd] = mask
 
             while True:
                 if frontend_socket.fileno() == -1 and upstream_socket.fileno() == -1:
                     break
+                watch(frontend_socket, to_frontend, to_upstream, upstream_socket)
+                watch(upstream_socket, to_upstream, to_frontend, frontend_socket)
                 events = p.poll(idle_timeout)
                 if not events:
                     return
@@ -169,39 +185,31 @@ class Proxy:
                             except (ConnectionResetError, BrokenPipeError):
                                 data = None
                             if not data:
-                                p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
-                                if upstream_socket.fileno() != -1:
-                                    p.unregister(upstream_socket.fileno())
-                                    upstream_socket.close()
+                                upstream_socket.close()
                                 self.log(httpHeaders, request_whole)
                                 break
-                            frontend_buffer += data
+                            if upstream_socket.fileno() != -1:
+                                # nowhere to send it once the upstream closed
+                                to_upstream += data
                             if len(request_whole) < max_inspect_size:
                                 request_whole += data
                             if not inspector.feed(data):
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
-                                p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                                 self.log(httpHeaders, request_whole)
                                 break
                             if len(request_whole) >= max_inspect_size:
                                 self.log(httpHeaders, request_whole)
-                            if upstream_socket.fileno() != -1:
-                                p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
                         elif fd == upstream_socket.fileno():
                             try:
                                 data = upstream_socket.recv(Proxy.buffer_size)
                             except BlockingIOError:
                                 continue
                             except (ConnectionResetError, BrokenPipeError):
-                                p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
-                                p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
-                                data = None
                                 break
                             if response_status is None:
                                 response_whole += data
@@ -212,64 +220,72 @@ class Proxy:
                                     if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                         self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                         self.log(httpHeaders, request_whole)
-                                        p.unregister(frontend_socket.fileno())
                                         frontend_socket.close()
-                                        p.unregister(upstream_socket.fileno())
                                         upstream_socket.close()
-                                        data = None
                                         break
                             clean, released = response_inspector.feed(data)
                             if not clean:
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                 self.log(httpHeaders, request_whole)
-                                p.unregister(frontend_socket.fileno())
                                 frontend_socket.close()
-                                p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
                                 break
-                            upstream_buffer += released
+                            to_frontend += released
                             if not data:
-                                p.unregister(upstream_socket.fileno())
                                 upstream_socket.close()
-                                if len(upstream_buffer) == 0 and frontend_socket.fileno() != -1:
-                                    p.unregister(frontend_socket.fileno())
-                                    frontend_socket.close()
-                                elif frontend_socket.fileno() != -1:
-                                    p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
+                                if not to_frontend:
+                                    Proxy.linger_close(frontend_socket)
                                 break
-                            if frontend_socket.fileno() != -1 and upstream_buffer:
-                                p.modify(frontend_socket, select.POLLOUT | select.POLLIN)
-                    elif event & select.POLLOUT:
-                        if fd == upstream_socket.fileno() and len(frontend_buffer) > 0:
+                    if event & select.POLLOUT:
+                        # also when the same event was readable, so a socket
+                        # that keeps receiving still gets its data sent
+                        if fd == upstream_socket.fileno() and to_upstream:
                             try:
-                                sent = upstream_socket.send(frontend_buffer)
+                                sent = upstream_socket.send(to_upstream)
                             except BlockingIOError:
                                 continue
-                            frontend_buffer = frontend_buffer[sent:]
-                            if len(frontend_buffer) == 0:
-                                p.modify(upstream_socket, select.POLLIN)
-                        elif fd == frontend_socket.fileno() and len(upstream_buffer) > 0:
+                            del to_upstream[:sent]
+                        elif fd == frontend_socket.fileno() and to_frontend:
                             try:
-                                sent = frontend_socket.send(upstream_buffer)
+                                sent = frontend_socket.send(to_frontend)
                             except BlockingIOError:
                                 continue
                             except (ConnectionResetError, BrokenPipeError):
                                 return
-                            upstream_buffer = upstream_buffer[sent:]
-                            if len(upstream_buffer) == 0:
-                                if upstream_socket.fileno() == -1:
-                                    p.unregister(frontend_socket.fileno())
-                                    frontend_socket.close()
-                                else:
-                                    p.modify(frontend_socket, select.POLLIN)
-                    elif event & (select.POLLHUP | select.POLLERR):
+                            del to_frontend[:sent]
+                            if not to_frontend and upstream_socket.fileno() == -1:
+                                Proxy.linger_close(frontend_socket)
+                    if not event & (select.POLLIN | select.POLLOUT) and event & (select.POLLHUP | select.POLLERR):
                         if fd == frontend_socket.fileno():
                             return
                         elif fd == upstream_socket.fileno():
-                            p.unregister(upstream_socket.fileno())
                             upstream_socket.close()
-                            if not upstream_buffer:
+                            if not to_frontend:
                                 return
+
+    linger_time: float = 1.0
+
+    @staticmethod
+    def linger_close(sock: socket.socket) -> None:
+        """Closes the client connection after a complete response without a reset.
+
+        Closing a socket with unread data sends an RST, which can make the
+        client drop the end of the response still in its receive buffer. The
+        write side is shut down first, then what the client still sends is
+        read and dropped until it closes, for at most linger_time seconds.
+        """
+        try:
+            sock.shutdown(socket.SHUT_WR)
+            deadline = time.monotonic() + Proxy.linger_time
+            with select.epoll() as p:
+                p.register(sock.fileno(), select.EPOLLIN)
+                while (remaining := deadline - time.monotonic()) > 0:
+                    if not p.poll(remaining) or not sock.recv(Proxy.buffer_size):
+                        break
+        except OSError:
+            pass
+        finally:
+            sock.close()
 
     def only_read(
         self,
