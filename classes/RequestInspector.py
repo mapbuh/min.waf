@@ -76,5 +76,7 @@ class RequestInspector:
         return True
 
     def _content(self) -> bool:
-        clean, self.clean_upto = Checks.content(self.config, self.httpHeaders, self.inspected, self.clean_upto)
+        clean, self.clean_upto = Checks.content(
+            self.config, self.httpHeaders, self.inspected, self.clean_upto, urlencoded=self.urlencoded is not None
+        )
         return clean

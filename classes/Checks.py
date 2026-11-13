@@ -87,7 +87,18 @@ class Checks:
         return True
 
     @staticmethod
-    def content(config: Config, httpHeaders: HttpHeaders, buffer: bytes, clean_upto: int) -> tuple[bool, int]:
+    def content(
+        config: Config,
+        httpHeaders: HttpHeaders,
+        buffer: bytes,
+        clean_upto: int,
+        urlencoded: bool = False,
+    ) -> tuple[bool, int]:
+        """Checks the content against the harmful signatures.
+
+        A form-urlencoded body is checked decoded too ('+' and %XX), the way
+        the application sees it, as the URL path is.
+        """
         if httpHeaders.status == HttpHeaders.STATUS_GOOD:
             return True, len(buffer)
         if httpHeaders.status == HttpHeaders.STATUS_BAD:
@@ -97,12 +108,15 @@ class Checks:
         if clean_upto >= config.config.getint("main", "max_inspect_size"):
             return True, clean_upto
         # Inspect only the new data since last clean point
-        dirty_data_from: int = clean_upto - config.longest_harmful_pattern() + 1
+        # an encoded signature is up to 3 times longer (%XX per byte)
+        overlap = config.longest_harmful_pattern() * (3 if urlencoded else 1)
+        dirty_data_from: int = clean_upto - overlap + 1
         if dirty_data_from < 0:
             dirty_data_from = 0
         dirty_data = buffer[dirty_data_from:].lower()
+        decoded = urllib.parse.unquote_to_bytes(dirty_data.replace(b'+', b' ')).lower() if urlencoded else b''
         for signature, encoded in zip(config.harmful_patterns(), config.harmful_patterns_encoded()):
-            if encoded in dirty_data:
+            if encoded in dirty_data or encoded in decoded:
                 httpHeaders.ban_reason = f"Harmful signature detected in content: {signature}"
                 httpHeaders.status = HttpHeaders.STATUS_BAD
                 return False, clean_upto

@@ -236,3 +236,31 @@ def test_harmless_upload_filename_passes(config):
     body = b'--xyz\r\nContent-Disposition: form-data; name="f"; filename="a|b.txt"\r\n\r\n<?php echo 1;\r\n--xyz--\r\n'
     clean, _ = inspect(config, [multipart_head() + body])
     assert clean
+
+
+URLENCODED_HEAD = (
+    b'POST /form.php HTTP/1.1\r\n'
+    b'Host: example.com\r\n'
+    b'Content-Type: application/x-www-form-urlencoded\r\n'
+    b'\r\n'
+)
+
+
+@pytest.mark.parametrize('body', [b'cmd=exec%28id%29', b'cmd=%65%78%65%63%28id', b'q=1+UNION+SELECT+password'])
+def test_urlencoded_body_is_checked_decoded(config: Config, body: bytes):
+    clean, http_headers = inspect(config, [URLENCODED_HEAD + body])
+    assert not clean
+    assert "Harmful signature detected in content" in http_headers.ban_reason
+
+
+def test_urlencoded_signature_split_between_reads(config: Config):
+    # the encoded signature is longer than the plain one; the overlap with the
+    # already checked data must cover it
+    clean, _ = inspect(config, [URLENCODED_HEAD + b'a=' + b'x' * 100 + b'&cmd=%65%78', b'%65%63%28id'])
+    assert not clean
+
+
+def test_other_bodies_are_not_decoded(config: Config):
+    head = URLENCODED_HEAD.replace(b'application/x-www-form-urlencoded', b'application/octet-stream')
+    clean, _ = inspect(config, [head + b'cmd=exec%28id%29'])
+    assert clean

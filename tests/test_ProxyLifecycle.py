@@ -26,7 +26,7 @@ def prepare_handler(proxy, monkeypatch, frontend, upstream):
     monkeypatch.setattr(proxy, 'parse_headers', lambda *args: HttpHeaders())
     monkeypatch.setattr(proxy, 'connect_upstream', lambda *args: upstream)
     monkeypatch.setattr('classes.Proxy.Checks.headers', lambda *args: True)
-    monkeypatch.setattr('classes.Proxy.Checks.content', lambda *args: (True, 0))
+    monkeypatch.setattr('classes.Proxy.Checks.content', lambda *args, **kwargs: (True, 0))
     monkeypatch.setattr('classes.Proxy.Checks.headers_with_status', lambda *args: True)
 
 
