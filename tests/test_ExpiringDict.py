@@ -46,3 +46,23 @@ def test_keys():
     ed.create("b", 2, None)
     keys = ed.keys()
     assert "a" in keys and "b" in keys
+
+
+def test_get_or_create_recreates_expired_key():
+    ed = ExpiringDict(expiration_time=1)
+    ed.create("a", 1, time.time() - 5)
+    assert ed.get("a") is None
+    ed.get_or_create("a", lambda: 2)
+    assert ed.get("a") == 2
+
+
+def test_bulk_reads_may_lag_until_sweep():
+    # the hot path expires only the key it touches; full expiry happens on
+    # the throttled sweep or on an explicit expire()
+    ed = ExpiringDict(expiration_time=1)
+    ed._next_sweep = time.time() + 3600  # suppress the throttled sweep
+    ed.create("a", 1, time.time() - 5)
+    assert "a" in ed.keys()  # bulk reads can lag behind
+    assert ed.get("a") is None  # per-key expiry is exact
+    ed.expire()
+    assert "a" not in ed.keys()
