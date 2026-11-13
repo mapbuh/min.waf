@@ -158,7 +158,8 @@ class Proxy:
                                 break
                             if len(request_whole) >= max_inspect_size:
                                 self.log(httpHeaders, request_whole)
-                            p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
+                            if upstream_socket.fileno() != -1:
+                                p.modify(upstream_socket, select.POLLOUT | select.POLLIN)
                         elif fd == upstream_socket.fileno():
                             try:
                                 data = upstream_socket.recv(Proxy.buffer_size)

@@ -126,6 +126,29 @@ def test_malformed_status_line_relayed_without_traceback(proxy, monkeypatch, cap
         assert upstream.fileno() == -1
 
 
+def test_client_data_while_draining_upstream_close(proxy, monkeypatch):
+    # the client can keep sending while a large response is still draining
+    # after the upstream closed; that must not touch the closed upstream fd
+    frontend, client = socket.socketpair()
+    upstream, server = socket.socketpair()
+    with frontend, client, upstream, server, ThreadPoolExecutor(max_workers=1) as executor:
+        upstream.setblocking(False)
+        prepare_handler(proxy, monkeypatch, frontend, upstream)
+        body = b'x' * (8 * 1024 * 1024)  # bigger than socket buffers, so draining stalls
+        response = b'HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n' % len(body) + body
+        future = executor.submit(proxy.proxy_handle_client, frontend, ('local', 0))
+        server.sendall(response)
+        client.sendall(b'GET /more HTTP/1.1\r\n' * 50000)  # keep client data pending past the upstream EOF
+        server.shutdown(socket.SHUT_WR)
+        received = b''
+        client.settimeout(1)
+        while chunk := client.recv(8192):
+            received += chunk
+        future.result(timeout=1)
+        assert received == response
+        assert upstream.fileno() == -1
+
+
 @pytest.mark.parametrize('failure', [TimeoutError(), socket.gaierror(), OSError('unreachable')])
 def test_connect_failure_closes_socket(proxy, monkeypatch, failure):
     upstream = MagicMock()
