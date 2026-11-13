@@ -62,7 +62,8 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch, temp_cache_di
         time.sleep(1)
         return DummyResponse(json.dumps(json_data).encode())
     monkeypatch.setattr(utils_module.requests, "get", fake_get)
-    result = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, ttl=0, strict=False)
+    # the first fetch populates the cache; strict callers wait for it
+    result = Utils.requests_get_cached_json(url, cache_dir=temp_cache_dir, ttl=0, strict=True)
     assert result == json_data
 
     threads: list[threading.Thread] = []
@@ -103,6 +104,19 @@ def test_requests_get_cached_json(monkeypatch: pytest.MonkeyPatch, temp_cache_di
     end_time = time.time()
     # threads waiting for the lock reuse the fresh download instead of fetching again
     assert end_time - start_time < 5
+
+
+def test_cold_cache_does_not_block(monkeypatch: pytest.MonkeyPatch, temp_cache_dir):
+    url = "http://example.com/slow"
+
+    def fake_fetch(url: str, timeout: int, cache_file: str):
+        time.sleep(2)  # the background fetch takes its time
+
+    monkeypatch.setattr(utils_module.Utils, "fetch_and_cache", staticmethod(fake_fetch))
+    start = time.time()
+    result = Utils.requests_get_cached(url, cache_dir=temp_cache_dir, ttl=3600, strict=False)
+    assert result == b""  # nothing cached yet, fetch continues in the background
+    assert time.time() - start < 1
 
 
 def test_fetch_and_cache(monkeypatch: pytest.MonkeyPatch, temp_cache_dir):

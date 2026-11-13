@@ -43,10 +43,15 @@ class Utils:
         t = threading.Thread(target=Utils.fetch_and_cache, args=(url, timeout, cache_file))
         t.start()
 
-        if not strict and os.path.exists(cache_file):
-            with open(cache_file, 'rb') as f:
-                logger.debug(f"Using cached response for {url} from {cache_file} while fetching new data")
-                result = f.read()
+        if not strict:
+            if os.path.exists(cache_file):
+                with open(cache_file, 'rb') as f:
+                    logger.debug(f"Using cached response for {url} from {cache_file} while fetching new data")
+                    result = f.read()
+            else:
+                # never block the caller on a cold cache; callers retry
+                logger.debug(f"No cached response for {url} yet, fetch running in the background")
+                result = b""
             return result
 
         t.join()
