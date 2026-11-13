@@ -30,7 +30,7 @@ class HttpHeaders:
         self.method = method
         self.path = path
         self.proto = proto
-        self.req = f"{host}{path}"
+        self.req = f"{host}/{path}" if path and not path.startswith('/') else f"{host}{path}"
         self.http_status = http_status
         self.ts: float = ts or time.time()
         self.status: int = self.STATUS_NEUTRAL
