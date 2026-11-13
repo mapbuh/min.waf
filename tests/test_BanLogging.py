@@ -154,3 +154,15 @@ def test_log_contents_handles_both_head_endings(config, tmp_path, head, body):
 
     assert requests_log.read_text() == '/.env\n'
     assert contents_log.read_text() == body.decode() + '\n===\n'
+
+
+@pytest.mark.parametrize('method', ['internal', 'iptables'])
+def test_request_without_ip_is_not_banned(config, rts, monkeypatch, method):
+    # banning '' would reject every later request without X-Real-IP
+    config.config.set('main', 'ban_method', method)
+    iptables = Mock()
+    monkeypatch.setattr('classes.Proxy.IpTables.ban', iptables)
+    Proxy.ban('', rts, config, 'Harmful signature detected in URL: exec(')
+    assert rts.banned_ips == {}
+    assert rts.bans == 0
+    iptables.assert_not_called()

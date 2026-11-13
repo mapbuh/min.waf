@@ -447,6 +447,11 @@ class Proxy:
         config: Config,
         reason: str = "request rejected",
     ) -> None:
+        if not ip:
+            # without X-Real-IP there is nobody to ban; banning '' would block
+            # every other request without an IP
+            logging.getLogger("min.waf").debug("request without client IP rejected; %s", reason)
+            return
         with rts._counters_lock:
             rts.bans += 1
         if config.config.get('main', 'ban_method') == 'iptables':

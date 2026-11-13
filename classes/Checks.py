@@ -239,7 +239,8 @@ class Checks:
         ua_data: IpData | None = None
         url_data: IpData | None = None
 
-        if httpHeaders.ip.strip() == '' and httpHeaders.host.strip() == '':
+        # requests without a client IP would all share one stats entry
+        if not httpHeaders.ip.strip():
             return True
 
         time_frame = config.config.getint('main', 'time_frame')
