@@ -1,4 +1,4 @@
-- requests after the first on a keep-alive or pipelined connection are relayed without the header checks, stats and known-attack bans (only the first request on a connection goes through Checks.headers); nginx defaults to one connection per request so this does not bite today, but it must be fixed before enabling upstream keepalive
+- requests after the first on a connection are relayed without the header checks, stats and known-attack bans (only the first request goes through Checks.headers); min.waf sends 'Connection: close' upstream so connections are not reused, which relies on the app honouring it; inspect each request to close the gap for good
 
 - use captcha before blocking
 - fork on external blacklist update

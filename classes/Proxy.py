@@ -21,6 +21,10 @@ class Proxy:
 
     buffer_size: int = 8192  # 8 KB
 
+    _head_end = re.compile(rb'\r?\n\r?\n')
+    _hop_header = re.compile(rb'^(connection|keep-alive|proxy-connection)[ \t]*:', re.IGNORECASE)
+    _upgrade_header = re.compile(rb'^upgrade[ \t]*:', re.IGNORECASE | re.MULTILINE)
+
     def __init__(
         self,
         config: Config,
@@ -360,6 +364,29 @@ class Proxy:
             raise
         return upstream_socket
 
+    @staticmethod
+    def close_after_response(buffer: bytes) -> bytes:
+        """Asks the upstream to close the connection after its response.
+
+        Only the first request on a connection goes through the checks, so the
+        connection must not be reused: the Connection, Keep-Alive and
+        Proxy-Connection headers are replaced with 'Connection: close'. When the
+        upstream closes, the frontend connection is closed too, so a frontend
+        that pools backend connections (Apache mod_proxy) opens a new one for
+        its next request. Upgrade requests (WebSocket) are left untouched.
+        """
+        match = Proxy._head_end.search(buffer)
+        if not match:
+            return buffer
+        head, rest = buffer[:match.start()], buffer[match.start():]
+        if Proxy._upgrade_header.search(head):
+            return buffer
+        lines = [line.removesuffix(b'\r') for line in head.split(b'\n')]
+        kept = [lines[0]] + [line for line in lines[1:] if not Proxy._hop_header.match(line)]
+        kept.append(b'Connection: close')
+        eol = b'\r\n' if rest.startswith(b'\r') else b'\n'
+        return eol.join(kept) + rest
+
     def proxy_handle_client(
             self,
             frontend_socket: socket.socket,
@@ -388,6 +415,7 @@ class Proxy:
             if not forward and not self.config.mode_honeypot:
                 return
             if forward:
+                frontend_buffer = Proxy.close_after_response(frontend_buffer)
                 upstream_socket = self.connect_upstream(httpHeaders)
                 if not upstream_socket or upstream_socket.fileno() == -1:
                     return

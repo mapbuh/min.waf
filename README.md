@@ -97,10 +97,12 @@ Configure each virtual host:
     RequestHeader set X-Real-IP "%{REMOTE_ADDR}s"
     RequestHeader set MinWaf-Dest "127.0.0.1:8080"
 
-    ProxyPass / http://127.0.0.1:9009/
+    ProxyPass / http://127.0.0.1:9009/ disablereuse=On
     ProxyPassReverse / http://127.0.0.1:9009/
 </VirtualHost>
 ```
+
+> **Note:** min.waf checks only the first request on a connection, so it asks the app to close the connection after each response. `disablereuse=On` also stops Apache from reusing backend connections, in case the app keeps them open anyway.
 
 > **Note:** If Apache2 itself sits behind another proxy (e.g. a CDN), use `%{HTTP:X-Forwarded-For}e` instead of `%{REMOTE_ADDR}s` to preserve the real client IP.
 

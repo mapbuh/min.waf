@@ -90,7 +90,9 @@ class TestMinProxy:
             b'\r\n' % port
         )
         assert self.handle(proxy, request) == RESPONSE
-        assert received == [request]
+        # only the first request on a connection is checked, so the upstream
+        # is asked to close the connection after its response
+        assert received == [request[:-2] + b'Connection: close\r\n\r\n']
         assert "1.2.3.4" not in proxy.rts.banned_ips
 
     def test_harmful_request_is_banned_and_not_relayed(self, proxy: Proxy, upstream):
@@ -117,7 +119,7 @@ class TestMinProxy:
             b'\r\n' % port
         )
         assert self.handle(proxy, request) == b''
-        assert received == [request]
+        assert received == [Proxy.close_after_response(request)]
         assert "1.2.3.4" in proxy.rts.banned_ips
 
     def test_unreachable_upstream_closes_client(self, proxy: Proxy):

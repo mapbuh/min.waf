@@ -124,3 +124,30 @@ def test_parse_headers_lowercase_names():
     assert (headers.upstream_host, headers.upstream_port) == ("127.0.0.1", 8080)
     assert headers.ua == "python-requests"
     assert headers.referer == "https://offnews.bg/"
+
+
+def test_close_after_response_replaces_connection_headers():
+    request = (
+        b'GET / HTTP/1.1\r\nHost: example.com\r\nConnection: keep-alive\r\n'
+        b'keep-alive: timeout=5\r\nX-Real-IP: 1.2.3.4\r\n\r\nbody'
+    )
+    assert Proxy.close_after_response(request) == (
+        b'GET / HTTP/1.1\r\nHost: example.com\r\nX-Real-IP: 1.2.3.4\r\nConnection: close\r\n\r\nbody'
+    )
+
+
+def test_close_after_response_adds_connection_close():
+    assert Proxy.close_after_response(b'GET / HTTP/1.0\r\nHost: a\r\n\r\n') == (
+        b'GET / HTTP/1.0\r\nHost: a\r\nConnection: close\r\n\r\n'
+    )
+    # bare LF requests keep their line endings
+    assert Proxy.close_after_response(b'GET / HTTP/1.0\nHost: a\n\n') == (
+        b'GET / HTTP/1.0\nHost: a\nConnection: close\n\n'
+    )
+
+
+def test_close_after_response_keeps_upgrades_and_partial_heads():
+    upgrade = b'GET /ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n\r\n'
+    assert Proxy.close_after_response(upgrade) == upgrade
+    partial = b'GET / HTTP/1.1\r\nConnection: keep-alive\r\n'
+    assert Proxy.close_after_response(partial) == partial
