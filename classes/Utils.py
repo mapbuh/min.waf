@@ -36,7 +36,7 @@ class Utils:
 
         if os.path.exists(cache_file) and time.time() - os.path.getmtime(cache_file) < ttl:
             with open(cache_file, 'rb') as f:
-                logger.info(f"Using cached response for {url} from {cache_file}")
+                logger.debug(f"Using cached response for {url} from {cache_file}")
                 result = f.read()
             return result
 
@@ -45,7 +45,7 @@ class Utils:
 
         if not strict and os.path.exists(cache_file):
             with open(cache_file, 'rb') as f:
-                logger.info(f"Using cached response for {url} from {cache_file} while fetching new data")
+                logger.debug(f"Using cached response for {url} from {cache_file} while fetching new data")
                 result = f.read()
             return result
 
