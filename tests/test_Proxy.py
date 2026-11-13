@@ -105,3 +105,22 @@ def test_parse_headers_invalid_values():
     headers = Proxy.__new__(Proxy).parse_headers(DummySocket(), request)
     assert headers.ip == ""
     assert (headers.upstream_host, headers.upstream_port) == ("app", 80)
+
+
+def test_parse_headers_lowercase_names():
+    # header names are case-insensitive per RFC 9110
+    request = (
+        b"GET /today HTTP/1.1\r\n"
+        b"host: offnews.bg\r\n"
+        b"x-real-ip: 1.2.3.4\r\n"
+        b"minwaf-dest: 127.0.0.1:8080\r\n"
+        b"user-agent: python-requests\r\n"
+        b"referer: https://offnews.bg/\r\n"
+        b"\r\n"
+    )
+    headers = Proxy.__new__(Proxy).parse_headers(DummySocket(), request)
+    assert headers.host == "offnews.bg"
+    assert headers.ip == "1.2.3.4"
+    assert (headers.upstream_host, headers.upstream_port) == ("127.0.0.1", 8080)
+    assert headers.ua == "python-requests"
+    assert headers.referer == "https://offnews.bg/"

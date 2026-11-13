@@ -292,22 +292,22 @@ class Proxy:
         referer: str = ''
         upstream_host: str = ''
         upstream_port: int = 0
-        host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE)
+        host_match = re.search(r'^Host: (.*)$', buffer_decoded, re.MULTILINE | re.IGNORECASE)
         if host_match:
             host = host_match.group(1).strip().split(':')[0]
-        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE)
+        ip_match = re.search(r'^X-Real-IP: (.*)$', buffer_decoded, re.MULTILINE | re.IGNORECASE)
         if ip_match:
             try:
                 ip = str(ipaddress.ip_address(ip_match.group(1).strip()))
             except ValueError:
                 ip = ''
-        ua_match = re.search(r'^(User-Agent|user-agent): (.*)$', buffer_decoded, re.MULTILINE)
+        ua_match = re.search(r'^User-Agent: (.*)$', buffer_decoded, re.MULTILINE | re.IGNORECASE)
         if ua_match:
-            ua = ua_match.group(2).strip()
-        referer_match = re.search(r'^(Referer|referer): (.*)$', buffer_decoded, re.MULTILINE)
+            ua = ua_match.group(1).strip()
+        referer_match = re.search(r'^Referer: (.*)$', buffer_decoded, re.MULTILINE | re.IGNORECASE)
         if referer_match:
-            referer = referer_match.group(2).strip()
-        match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE)
+            referer = referer_match.group(1).strip()
+        match = re.search(r'^MinWaf-Dest: (http://|https://)*(.*)$', buffer_decoded, re.MULTILINE | re.IGNORECASE)
         if match:
             waf_dest = match.group(2).strip()
             upstream_host, sep, upstream_port_str = waf_dest.partition(':')
