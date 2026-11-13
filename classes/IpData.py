@@ -38,7 +38,10 @@ class IpData:
     @property
     def avail_time(self) -> int:
         '''Available time window in seconds'''
-        res = self.max_ts - self.min_ts
+        ts_values = self._log_lines.get_values_by_key("ts")
+        if not ts_values:
+            return 1
+        res = max(ts_values) - min(ts_values)
         return int(res) if res > 0 else 1
 
     @property
@@ -66,20 +69,23 @@ class IpData:
 
     @property
     def http_status_bad(self) -> float:
+        ignore = self.config.getlistint('main', 'http_status_ignore')
+        good = self.config.getlistint('main', 'http_status_good')
+        min_count = self.config.config.getint('main', 'http_status_min_count')
         unique_paths: set[str] = set()
         score = 0.0
         count = 0
         for line in self._log_lines.values():
-            if line.http_status in self.config.getlistint('main', 'http_status_ignore'):
+            if line.http_status in ignore:
                 continue
             if line.path in unique_paths:
                 continue
             count += 1
             unique_paths.add(line.path)
-            if line.http_status in self.config.getlistint('main', 'http_status_good'):
+            if line.http_status in good:
                 continue
             score += 1.0  # base score for bad status
-        return score / count if count > self.config.config.getint('main', 'http_status_min_count') else 0
+        return score / count if count > min_count else 0
 
     @property
     def steal_time(self) -> float:
