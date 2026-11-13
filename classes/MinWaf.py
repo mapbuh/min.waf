@@ -86,7 +86,9 @@ class MinWaf:
         if signum == signal.SIGTERM:
             logger.info(f"Received signal {signum}, exiting...")
             self.at_exit()
-            sys.exit(0)
+            # leave without waiting for the worker threads: the executor
+            # shutdown would wait for idle connections up to the idle timeout
+            os._exit(0)
         elif signum == signal.SIGUSR1:
             logger.info(f"Received signal {signum}, dumping stats...")
             self.every_1_hour()
