@@ -26,7 +26,10 @@ class TestMinProxy:
         return RunTimeStats(config)
 
     @pytest.fixture
-    def proxy(self, config: Config, rts: RunTimeStats):
+    def proxy(self, config: Config, rts: RunTimeStats, monkeypatch: pytest.MonkeyPatch):
+        # handle() reads only after the handler returns, so error responses
+        # would wait out the whole linger time
+        monkeypatch.setattr(Proxy, "linger_time", 0.05)
         # Avoid running __init__ loop
         instance = Proxy.__new__(Proxy)
         instance.config = config
@@ -104,7 +107,7 @@ class TestMinProxy:
             b'MinWaf-Dest: 127.0.0.1:%d\r\n'
             b'\r\n' % port
         )
-        assert self.handle(proxy, request) == b''
+        assert self.handle(proxy, request) == Proxy.forbidden
         assert received == []
         assert "1.2.3.4" in proxy.rts.banned_ips
 
@@ -118,7 +121,8 @@ class TestMinProxy:
             b'MinWaf-Dest: 127.0.0.1:%d\r\n'
             b'\r\n' % port
         )
-        assert self.handle(proxy, request) == b''
+        # the response head was held back, so the client still gets a 403
+        assert self.handle(proxy, request) == Proxy.forbidden
         assert received == [Proxy.close_after_response(request)]
         assert "1.2.3.4" in proxy.rts.banned_ips
 
@@ -140,7 +144,10 @@ class TestMinProxy:
         assert self.handle(proxy, request) == responses[0]
         assert seen == [200]
 
-    def test_unreachable_upstream_closes_client(self, proxy: Proxy):
+    # a bare close would look to nginx like min.waf is down: it would mark
+    # the instance as failed and send the request to the app past min.waf
+
+    def test_unreachable_upstream_answers_502(self, proxy: Proxy):
         request = (
             b'GET / HTTP/1.1\r\n'
             b'X-Real-IP: 1.2.3.4\r\n'
@@ -148,7 +155,46 @@ class TestMinProxy:
             b'MinWaf-Dest: 127.0.0.1:1\r\n'
             b'\r\n'
         )
-        assert self.handle(proxy, request) == b''
+        assert self.handle(proxy, request) == Proxy.bad_gateway
+
+    def test_unresolvable_upstream_answers_502(self, proxy: Proxy):
+        request = (
+            b'GET / HTTP/1.1\r\n'
+            b'X-Real-IP: 1.2.3.4\r\n'
+            b'Host: example.com\r\n'
+            b'MinWaf-Dest: no-such-host.invalid:80\r\n'
+            b'\r\n'
+        )
+        assert self.handle(proxy, request) == Proxy.bad_gateway
+
+    def test_upstream_closing_without_response_answers_502(self, proxy: Proxy, upstream):
+        port, received, responses = upstream
+        responses[0] = b''
+        request = (
+            b'GET / HTTP/1.1\r\n'
+            b'X-Real-IP: 1.2.3.4\r\n'
+            b'Host: example.com\r\n'
+            b'MinWaf-Dest: 127.0.0.1:%d\r\n'
+            b'\r\n' % port
+        )
+        assert self.handle(proxy, request) == Proxy.bad_gateway
+        assert "1.2.3.4" not in proxy.rts.banned_ips
+
+    def test_idle_upstream_answers_504(self, proxy: Proxy, config: Config):
+        config.config.set('main', 'connection_idle_timeout', '0.2')
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(('127.0.0.1', 0))
+        server.listen(1)
+        with server:
+            request = (
+                b'GET / HTTP/1.1\r\n'
+                b'X-Real-IP: 1.2.3.4\r\n'
+                b'Host: example.com\r\n'
+                b'MinWaf-Dest: 127.0.0.1:%d\r\n'
+                b'\r\n' % server.getsockname()[1]
+            )
+            # the connection waits in the backlog and never gets an answer
+            assert self.handle(proxy, request) == Proxy.gateway_timeout
 
     def test_init_socket_loop(self, config: Config, rts: RunTimeStats, monkeypatch: pytest.MonkeyPatch):
         # Patch socket to avoid real network

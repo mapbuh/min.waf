@@ -13,6 +13,10 @@ class DummySocket:
     def __init__(self):
         self.closed = False
         self.setblocking_called = False
+        self.sent = b''
+
+    def sendall(self, data):
+        self.sent += data
 
     def setblocking(self, flag):
         self.setblocking_called = True
@@ -66,8 +70,10 @@ def test_proxy_handle_client_ban(proxy: Proxy, monkeypatch: pytest.MonkeyPatch, 
     monkeypatch.setattr(proxy, "ban", ban)
     monkeypatch.setattr(proxy, "connect_upstream", connect_upstream)
 
+    monkeypatch.setattr(Proxy, "linger_close", staticmethod(lambda sock: sock.close()))
     dummy_socket = DummySocket()
     proxy.proxy_handle_client(dummy_socket, ("127.0.0.1", 12345))
+    assert dummy_socket.sent == Proxy.forbidden
     ban.assert_called_once()
     assert ban.call_args.args[0] == "127.0.0.1"
     connect_upstream.assert_not_called()

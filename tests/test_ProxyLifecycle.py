@@ -201,11 +201,8 @@ def test_connect_failure_closes_socket(proxy, monkeypatch, failure):
     upstream = MagicMock()
     upstream.connect.side_effect = failure
     monkeypatch.setattr('classes.Proxy.socket.socket', lambda *args: upstream)
-    if isinstance(failure, TimeoutError):
-        assert proxy.connect_upstream(HttpHeaders()) is None
-    else:
-        with pytest.raises(OSError):
-            proxy.connect_upstream(HttpHeaders())
+    # the caller answers 502 instead of leaving nginx a bare close
+    assert proxy.connect_upstream(HttpHeaders()) is None
     upstream.settimeout.assert_called_once_with(10)
     upstream.close.assert_called_once()
 

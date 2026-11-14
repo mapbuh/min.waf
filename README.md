@@ -89,6 +89,36 @@ location / {
 }
 ```
 
+With several instances, put them in an upstream block. nginx then retries a request on another instance when one is down, and sends it straight to the app when all of them are:
+
+```nginx
+upstream minwaf {
+    hash $remote_addr consistent;
+    server 127.0.0.1:9009;
+    server 127.0.0.1:9010;
+}
+
+server {
+    # ...
+    location / {
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_set_header    MinWaf-Dest <upstream address or hostname>:80;
+        proxy_pass          http://minwaf;
+        # only connection errors: never resend a request that timed out
+        proxy_next_upstream error;
+        # every instance failed: go straight to the app
+        error_page          502 = @minwaf_bypass;
+    }
+
+    location @minwaf_bypass {
+        proxy_set_header    X-Real-IP $remote_addr;
+        proxy_pass          http://<upstream address or hostname>:80;
+    }
+}
+```
+
+This is safe because min.waf always answers when it is running: 403 for a rejected request, 502 when it cannot reach the app and 504 when the app does not answer in `connection_idle_timeout`. Only a stopped or crashed instance leaves nginx with a failed connection. Do not set `max_fails=0`: with the default, nginx skips a failed instance for `fail_timeout` (10s) instead of trying it first on every request. Do not add 504 to `error_page`, or a slow request is sent to the app a second time.
+
 #### Apache2
 
 Enable the required modules:

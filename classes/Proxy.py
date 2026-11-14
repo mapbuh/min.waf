@@ -142,6 +142,17 @@ class Proxy:
     ) -> None:
         response_status: int | None = None
         response_whole: bytes = b''
+        # once part of the response went out an error response cannot
+        # follow, only a close
+        response_started = bool(upstream_buffer)
+
+        def reject(response: bytes = Proxy.forbidden) -> None:
+            upstream_socket.close()
+            if response_started:
+                frontend_socket.close()
+            else:
+                Proxy.reject(frontend_socket, response)
+
         response_inspector = ResponseInspector(self.config, httpHeaders)
         max_inspect_size = self.config.config.getint("main", "max_inspect_size")
         idle_timeout = self.config.config.getfloat("main", "connection_idle_timeout", fallback=60)
@@ -174,6 +185,7 @@ class Proxy:
                 watch(upstream_socket, to_upstream, to_frontend, frontend_socket)
                 events = p.poll(idle_timeout)
                 if not events:
+                    reject(Proxy.gateway_timeout)
                     return
                 for fd, event in events:
                     if event & select.POLLIN:
@@ -196,8 +208,7 @@ class Proxy:
                                 request_whole += data
                             if not inspector.feed(data):
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
-                                frontend_socket.close()
-                                upstream_socket.close()
+                                reject()
                                 self.log(httpHeaders, request_whole)
                                 break
                             if len(request_whole) >= max_inspect_size:
@@ -208,8 +219,7 @@ class Proxy:
                             except BlockingIOError:
                                 continue
                             except (ConnectionResetError, BrokenPipeError):
-                                frontend_socket.close()
-                                upstream_socket.close()
+                                reject(Proxy.bad_gateway)
                                 break
                             if response_status is None:
                                 response_whole += data
@@ -220,18 +230,22 @@ class Proxy:
                                     if not Checks.headers_with_status(httpHeaders, self.config, self.rts):
                                         self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                         self.log(httpHeaders, request_whole)
-                                        frontend_socket.close()
-                                        upstream_socket.close()
+                                        reject()
                                         break
                             clean, released = response_inspector.feed(data)
                             if not clean:
                                 self.ban(httpHeaders.ip, self.rts, self.config, httpHeaders.ban_reason)
                                 self.log(httpHeaders, request_whole)
-                                frontend_socket.close()
-                                upstream_socket.close()
+                                reject()
                                 break
+                            if released:
+                                response_started = True
                             to_frontend += released
                             if not data:
+                                if not response_started:
+                                    # closed without answering
+                                    reject(Proxy.bad_gateway)
+                                    break
                                 upstream_socket.close()
                                 if not to_frontend:
                                     Proxy.linger_close(frontend_socket)
@@ -259,11 +273,38 @@ class Proxy:
                         if fd == frontend_socket.fileno():
                             return
                         elif fd == upstream_socket.fileno():
+                            if not response_started:
+                                reject(Proxy.bad_gateway)
+                                return
                             upstream_socket.close()
                             if not to_frontend:
                                 return
 
     linger_time: float = 1.0
+    forbidden: bytes = b'HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+    bad_gateway: bytes = b'HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+    gateway_timeout: bytes = b'HTTP/1.1 504 Gateway Timeout\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+
+    @staticmethod
+    def reject(sock: socket.socket, response: bytes = forbidden) -> None:
+        """Answers the frontend with an error response and closes the connection.
+
+        A bare close makes nginx answer 502 itself, the same as when min.waf
+        is down: proxy_next_upstream marks the instance as failed and the
+        error_page fallback sends the request straight to the app, which for
+        a rejected request means past min.waf. Only for requests whose
+        response has not started.
+        """
+        if sock.fileno() == -1:
+            return
+        try:
+            sock.sendall(response)
+        except OSError:
+            sock.close()
+            return
+        # the frontend may still be sending the body; dropping it unread
+        # would reset the connection and could lose the 403
+        Proxy.linger_close(sock)
 
     @staticmethod
     def linger_close(sock: socket.socket) -> None:
@@ -354,10 +395,13 @@ class Proxy:
             if upstream_socket is not None:
                 upstream_socket.close()
             upstream_socket = None
-        except OSError:
+        except OSError as exc:
+            # e.g. a MinWaf-Dest name that does not resolve
+            logger = logging.getLogger("min.waf")
+            logger.info(f"Connection to {httpHeaders.upstream_host}:{httpHeaders.upstream_port} failed: {exc}")
             if upstream_socket is not None:
                 upstream_socket.close()
-            raise
+            upstream_socket = None
         return upstream_socket
 
     @staticmethod
@@ -435,10 +479,12 @@ class Proxy:
                 forward = False
                 self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
             if not forward:
+                Proxy.reject(frontend_socket)
                 return
             frontend_buffer = Proxy.close_after_response(frontend_buffer)
             upstream_socket = self.connect_upstream(httpHeaders)
             if not upstream_socket or upstream_socket.fileno() == -1:
+                Proxy.reject(frontend_socket, Proxy.bad_gateway)
                 return
             self.forward(
                 httpHeaders,

@@ -84,12 +84,15 @@ def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trig
     proxy.config, proxy.rts = config, rts
     monkeypatch.setattr(proxy, 'read_headers', lambda *args: request)
     monkeypatch.setattr(proxy, 'parse_headers', lambda *args: headers)
+    monkeypatch.setattr(Proxy, 'linger_close', staticmethod(lambda sock: sock.close()))
     client = Mock()
     caplog.set_level(logging.INFO, logger='min.waf')
 
     proxy.proxy_handle_client(client, ('127.0.0.1', 12345))
 
-    client.close.assert_called_once()
+    # a 403, not a bare close, so nginx does not take it for min.waf being down
+    client.sendall.assert_called_once_with(Proxy.forbidden)
+    client.close.assert_called()
     assert headers.ip in rts.banned_ips
     assert caplog.messages == [f'{headers.ip} banned; {reason}']
 
