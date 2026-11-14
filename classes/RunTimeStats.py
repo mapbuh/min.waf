@@ -46,7 +46,6 @@ class IDSPath:
 class IDS:
     def __init__(self, expiration_time: int = 3600) -> None:
         self.path: dict[str, IDSPath] = {}
-        self.ts: dict[str, float] = {}
         self.expiration_time = expiration_time
         self._lock = threading.Lock()
         self._events: deque[tuple[float, str, str, int]] = deque()
@@ -76,7 +75,6 @@ class IDS:
                 del hosts[host]
             if not hosts:
                 del self.path[path]
-                del self.ts[path]
 
     def expire(self) -> None:
         with self._lock:
@@ -97,7 +95,6 @@ class IDS:
             if http_status not in self.path[path].hosts[host].http_statuses:
                 self.path[path].hosts[host].http_statuses[http_status] = deque()
             self.path[path].hosts[host].http_statuses[http_status].append(ip)
-            self.ts[path] = time.time()
             self._events.append((time.monotonic(), path, host, http_status))
 
 

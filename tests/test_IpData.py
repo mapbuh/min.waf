@@ -37,12 +37,10 @@ def make_ip_data(config: Config) -> IpData:
 
 def test_ipdata_init_and_repr(config: Config):
     data: dict[str, Any] = {
-        "raw_lines": ExpiringList(60),
         "log_lines": ExpiringList(60)
     }
     ipd = IpData(config, "1.2.3.4", "ip", data)
     assert "IpData" in repr(ipd)
-    assert isinstance(ipd.raw_lines, ExpiringList)
     assert isinstance(ipd.log_lines, ExpiringList)
 
 

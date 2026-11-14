@@ -17,7 +17,6 @@ def test_continuous_probes_expire_individually(monkeypatch):
     now[0] = 1010
     ids.expire()
     assert ids.path == {}
-    assert ids.ts == {}
     assert not ids._events
 
 

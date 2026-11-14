@@ -5,22 +5,16 @@ from classes.HttpHeaders import HttpHeaders
 
 
 class IpData:
-    _raw_lines: ExpiringList[str]
     _log_lines: ExpiringList[HttpHeaders]
 
     def __init__(self, config: Config, key: str, key_name: str, data: dict[str, Any]):
         self.config = config
         self.key = key
         self.key_name = key_name
-        self._raw_lines = data.get("raw_lines", ExpiringList(60))
         self._log_lines = data.get("log_lines", ExpiringList(60))
 
     def __repr__(self) -> str:
-        return f"IpData(raw_lines={self._raw_lines}, log_lines={self._log_lines})"
-
-    @property
-    def raw_lines(self) -> ExpiringList[str]:
-        return self._raw_lines
+        return f"IpData(log_lines={self._log_lines})"
 
     @property
     def log_lines(self) -> ExpiringList[HttpHeaders]:

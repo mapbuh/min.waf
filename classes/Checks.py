@@ -264,7 +264,6 @@ class Checks:
         ip_data = rts.ip_stats.get_or_create(
             httpHeaders.ip,
             lambda: IpData(config, httpHeaders.ip, 'ip', {
-                "raw_lines": ExpiringList(expiration_time=time_frame),
                 "log_lines": ExpiringList(expiration_time=time_frame),
             }),
             ts=httpHeaders.ts,

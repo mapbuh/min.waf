@@ -171,7 +171,6 @@ def test_bad_http_stats(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
@@ -200,7 +199,6 @@ def test_bad_http_stats(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
@@ -219,7 +217,6 @@ def test_bad_http_stats(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
@@ -238,7 +235,6 @@ def test_bad_http_stats(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
@@ -273,7 +269,6 @@ def test_bad_steal_ratio(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
@@ -302,7 +297,6 @@ def test_bad_steal_ratio(
         http_headers.ip,
         'ip',
         {
-            "raw_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
             "log_lines": ExpiringList(expiration_time=config.config.getint('main', 'time_frame')),
         }
     )
