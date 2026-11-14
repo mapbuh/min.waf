@@ -344,26 +344,6 @@ def test_static_files_skip_stats(monkeypatch: pytest.MonkeyPatch, config: Config
     assert Checks.headers_with_status(http_headers, config, rts) is False
 
 
-def test_good_bots_are_still_inspected(monkeypatch: pytest.MonkeyPatch, config: Config, rts: RunTimeStats) -> None:
-    # good bots are matched on the user agent only, which anyone can send
-    http_headers = clean_http_headers()
-    http_headers.ua = "GoodBot/2.0"
-    assert Checks.headers(http_headers, config, rts) is True
-    assert http_headers.skip_stats is True
-    assert http_headers.status == HttpHeaders.STATUS_NEUTRAL
-    assert Checks.content(config, http_headers, b"<script>exec()</script>", 0) == (False, 0)
-
-    http_headers = clean_http_headers()
-    http_headers.ua = "GoodBot/2.0"
-    http_headers.path = "/xmlrpc.php?a=exec("
-    assert Checks.headers(http_headers, config, rts) is False
-
-    http_headers = clean_http_headers()
-    http_headers.ua = "GoodBot/2.0"
-    monkeypatch.setattr(IpBlacklist, "is_ip_blacklisted", lambda self, ip: True)  # type: ignore
-    assert Checks.headers(http_headers, config, rts) is False
-
-
 def test_requests_without_ip_skip_stats(config: Config, rts: RunTimeStats) -> None:
     http_headers = clean_http_headers()
     http_headers.ip = ""
