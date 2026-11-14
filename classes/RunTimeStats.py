@@ -107,8 +107,6 @@ class RunTimeStats:
         self.start_time: float = 0
         self.ip_whitelist: IpWhitelist = IpWhitelist(config)
         self.ip_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
-        self.url_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
-        self.ua_stats: ExpiringDict[IpData] = ExpiringDict[IpData](config.config.getint('main', 'time_frame'))
         self.bans: int = 0
         self.inter_domain: IDS = IDS(expiration_time=config.config.getint('main', 'time_frame'))
         self.ip_blacklist: IpBlacklist = IpBlacklist(config)

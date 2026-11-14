@@ -256,9 +256,6 @@ class Checks:
         rts: RunTimeStats,
         httpHeaders: HttpHeaders,
     ) -> bool:
-        ua_data: IpData | None = None
-        url_data: IpData | None = None
-
         # requests without a client IP would all share one stats entry
         if not httpHeaders.ip.strip():
             return True
@@ -273,30 +270,6 @@ class Checks:
             ts=httpHeaders.ts,
         )
         ip_data.log_lines.append(httpHeaders.ts, httpHeaders)
-
-        if config.config.getboolean('main', 'url_stats'):
-            url_data = rts.url_stats.get_or_create(
-                httpHeaders.path,
-                lambda: IpData(config, httpHeaders.path, 'path', {
-                    "raw_lines": ExpiringList(expiration_time=time_frame),
-                    "log_lines": ExpiringList(expiration_time=time_frame),
-                }),
-                ts=httpHeaders.ts,
-            )
-            url_data.log_lines.append(httpHeaders.ts, httpHeaders)
-        else:
-            url_data = None
-
-        if config.config.getboolean('main', 'ua_stats'):
-            ua_data = rts.ua_stats.get_or_create(
-                httpHeaders.ua,
-                lambda: IpData(config, httpHeaders.ua, 'user_agent', {
-                    "raw_lines": ExpiringList(expiration_time=time_frame),
-                    "log_lines": ExpiringList(expiration_time=time_frame),
-                }),
-                ts=httpHeaders.ts,
-            )
-            ua_data.log_lines.append(httpHeaders.ts, httpHeaders)
 
         if Checks.bad_http_stats(config, httpHeaders, ip_data):
             httpHeaders.ban_reason = (

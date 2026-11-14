@@ -100,8 +100,6 @@ def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trig
 def test_response_rejection_reason(config, rts, caplog):
     headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/.env', http_status=404)
     config.config.set('main', 'ban_method', 'internal')
-    config.config.set('main', 'url_stats', 'False')
-    config.config.set('main', 'ua_stats', 'False')
     rts.ip_stats = Mock()
     rts.ip_stats.get_or_create.return_value = SimpleNamespace(
         log_lines=Mock(), http_status_bad=0, steal_time=0, total_time=0, avail_time=1,
@@ -121,8 +119,6 @@ def test_response_rejection_reason(config, rts, caplog):
 def test_stats_ban_logs_once_with_details(config, rts, caplog, stats, reason):
     headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/', http_status=200)
     config.config.set('main', 'ban_method', 'internal')
-    config.config.set('main', 'url_stats', 'False')
-    config.config.set('main', 'ua_stats', 'False')
     rts.ip_stats = Mock()
     rts.ip_stats.get_or_create.return_value = SimpleNamespace(**{
         'log_lines': Mock(), 'request_count': 26, 'http_status_bad': 0,
