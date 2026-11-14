@@ -67,19 +67,16 @@ def test_config_port_override():
     config = Config("test.conf", 9010)
     assert config.config.getint("main", "port") == 9010
     assert config.config.get("main", "lockfile") == "/var/run/min.waf-9010.pid"
-    assert config.config.get("main", "iptables_chain") == "MINWAF-9010"
     # a config reload (SIGHUP) keeps the override
     config.load()
     assert config.config.getint("main", "port") == 9010
     assert config.config.get("main", "lockfile") == "/var/run/min.waf-9010.pid"
-    assert config.config.get("main", "iptables_chain") == "MINWAF-9010"
 
 
 def test_config_no_port_override():
     config = Config("test.conf")
     assert config.config.getint("main", "port") == 9009
     assert config.config.get("main", "lockfile") == "/var/run/min.waf.pid"
-    assert config.config.get("main", "iptables_chain") == "MINWAF"
 
 
 def test_whitelist_bot_retries_soon_without_ranges(monkeypatch: pytest.MonkeyPatch):

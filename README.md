@@ -19,9 +19,11 @@ Main goal is to have virtually no false positives and not to disrupt normal oper
 
 ## Prerequisites
 
+- Linux (min.waf uses epoll)
+- Python 3.10 or newer
+- Python packages: requests, click, yappi
 - Nginx or Apache2 installed and running as a reverse proxy
-- min.waf 
-- python-requests
+- iptables (provides `iptables` and `ip6tables`) and ipset
 - Root or sudo privileges
 
 ## Setup Steps
@@ -34,7 +36,7 @@ git clone https://github.com/mapbuh/min.waf.git
 ```
 2. Install the dependencies
 ```
-apt install python3-requests python3-yappi
+apt install python3-requests python3-click python3-yappi iptables ipset
 ```
 3. Create configuration using the examples and copy it to /etc/min.waf.conf
 ```
@@ -58,7 +60,16 @@ To run several instances from one config on different ports, use the `min.waf@.s
 cp min.waf@.service /etc/systemd/system
 systemctl daemon-reload && systemctl enable --now min.waf@9009 min.waf@9010
 ```
-Each instance overrides `port` with `--port` and gets its own lockfile (`/var/run/min.waf-<port>.pid`) and iptables chain (`MINWAF-<port>`).
+Each instance overrides `port` with `--port` and gets its own lockfile (`/var/run/min.waf-<port>.pid`).
+
+#### Bans
+
+Banned IPs go into an ipset (`minwaf`, plus `minwaf6` for IPv6) that a single INPUT rule drops on ports 80 and 443. All instances share the sets, and the kernel expires entries after `ban_time`, so restarting an instance keeps everyone's bans. The sets and rules are left in place when min.waf stops; to remove them:
+```
+iptables -D INPUT -m set --match-set minwaf src -p tcp -m multiport --dports 80,443 -j DROP
+ip6tables -D INPUT -m set --match-set minwaf6 src -p tcp -m multiport --dports 80,443 -j DROP
+ipset destroy minwaf; ipset destroy minwaf6
+```
 
 ### 2. Configure the frontend proxy
 

@@ -38,16 +38,12 @@ class Config:
         """Run on another port than the config file says.
 
         Lets several instances share one config file: each one gets its own
-        lockfile and iptables chain, so they don't stop or clear each other.
+        lockfile, so they don't stop each other. ipset_name stays the same:
+        the ipset is meant to be shared.
         """
         config.set("main", "port", str(port))
         root, ext = os.path.splitext(config.get("main", "lockfile"))
         config.set("main", "lockfile", f"{root}-{port}{ext}")
-        config.set("main", "iptables_chain", f"{config.get('main', 'iptables_chain')}-{port}")
-
-    @property
-    def mode_honeypot(self) -> bool:
-        return self.config.get('main', 'ban_method') == 'internal' and bool(self.config.get('log', 'requests'))
 
     def getlist(self, section: str, option: str) -> list[str]:
         return [s for s in self.config.get(section, option).split("\n") if s]

@@ -1,4 +1,5 @@
 import pathlib
+import subprocess
 
 import pytest
 import requests
@@ -20,4 +21,17 @@ def no_network(monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path) -> None:
         Utils,
         "cache_dir_path",
         staticmethod(lambda cache_dir=None: cache_dir_path(cache_dir or str(tmp_path / "cache"))),
+    )
+
+
+@pytest.fixture(autouse=True)
+def no_firewall(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keeps tests from running ipset and iptables.
+
+    Tests that check the calls monkeypatch subprocess.run themselves.
+    """
+    monkeypatch.setattr(
+        subprocess,
+        "run",
+        lambda args, *a, **kw: subprocess.CompletedProcess(args, 0),
     )

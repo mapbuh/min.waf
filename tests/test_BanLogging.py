@@ -32,14 +32,12 @@ def rts():
     )
 
 
-@pytest.mark.parametrize('method', ['internal', 'iptables'])
 @pytest.mark.parametrize('ip', ['203.0.113.10', '2001:db8::10'])
 @pytest.mark.parametrize('enabled', [True, False])
-def test_new_ban_logging(config, rts, monkeypatch, caplog, method, ip, enabled):
-    config.config.set('main', 'ban_method', method)
+def test_new_ban_logging(config, rts, monkeypatch, caplog, ip, enabled):
     config.config.set('log', 'bans', str(enabled))
     run = Mock()
-    monkeypatch.setattr('classes.IpTables.subprocess.run', run)
+    monkeypatch.setattr('classes.IpSet.subprocess.run', run)
     caplog.set_level(logging.INFO, logger='min.waf')
 
     Proxy.ban(ip, rts, config, 'test reason')
@@ -48,7 +46,7 @@ def test_new_ban_logging(config, rts, monkeypatch, caplog, method, ip, enabled):
     Proxy.ban(ip, rts, config, 'repeat reason')
     assert rts.banned_ips[ip] > 0
     assert caplog.messages == ([f'{ip} banned; test reason'] if enabled else [])
-    assert run.call_count == (2 if method == 'iptables' else 0)
+    assert run.call_count == 2
 
 
 @pytest.mark.parametrize('trigger,reason', [
@@ -61,7 +59,6 @@ def test_new_ban_logging(config, rts, monkeypatch, caplog, method, ip, enabled):
 ])
 @pytest.mark.parametrize('category_logging', ['False', 'True'])
 def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trigger, reason, category_logging):
-    config.config.set('main', 'ban_method', 'internal')
     # Central ban logging must work when category logging is disabled, and log once when enabled.
     config.config.set('log', 'bad_bots', category_logging)
     config.config.set('log', 'blacklist', category_logging)
@@ -99,7 +96,6 @@ def test_early_ban_includes_ip_and_reason(config, rts, monkeypatch, caplog, trig
 
 def test_response_rejection_reason(config, rts, caplog):
     headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/.env', http_status=404)
-    config.config.set('main', 'ban_method', 'internal')
     rts.ip_stats = Mock()
     rts.ip_stats.get_or_create.return_value = SimpleNamespace(
         log_lines=Mock(), http_status_bad=0, steal_time=0, total_time=0, avail_time=1,
@@ -118,7 +114,6 @@ def test_response_rejection_reason(config, rts, caplog):
 ])
 def test_stats_ban_logs_once_with_details(config, rts, caplog, stats, reason):
     headers = HttpHeaders(ip='203.0.113.10', host='example.com', path='/', http_status=200)
-    config.config.set('main', 'ban_method', 'internal')
     rts.ip_stats = Mock()
     rts.ip_stats.get_or_create.return_value = SimpleNamespace(**{
         'log_lines': Mock(), 'request_count': 26, 'http_status_bad': 0,
@@ -152,13 +147,11 @@ def test_log_contents_handles_both_head_endings(config, tmp_path, head, body):
     assert contents_log.read_text() == body.decode() + '\n===\n'
 
 
-@pytest.mark.parametrize('method', ['internal', 'iptables'])
-def test_request_without_ip_is_not_banned(config, rts, monkeypatch, method):
+def test_request_without_ip_is_not_banned(config, rts, monkeypatch):
     # banning '' would reject every later request without X-Real-IP
-    config.config.set('main', 'ban_method', method)
-    iptables = Mock()
-    monkeypatch.setattr('classes.Proxy.IpTables.ban', iptables)
+    ipset_ban = Mock()
+    monkeypatch.setattr('classes.Proxy.IpSet.ban', ipset_ban)
     Proxy.ban('', rts, config, 'Harmful signature detected in URL: exec(')
     assert rts.banned_ips == {}
     assert rts.bans == 0
-    iptables.assert_not_called()
+    ipset_ban.assert_not_called()

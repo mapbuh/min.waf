@@ -10,7 +10,7 @@ import yappi
 
 from classes.Bots import Bots
 from classes.Config import Config
-from classes.IpTables import IpTables
+from classes.IpSet import IpSet
 from classes.PrintStats import PrintStats
 from classes.Proxy import Proxy
 from classes.RunTimeStats import RunTimeStats
@@ -23,7 +23,7 @@ class MinWaf:
         if self.config.config.getboolean("dev", "profiling"):
             yappi.start()
         self.lockfile_init()
-        IpTables.init(self.config)
+        IpSet.init(self.config)
         self.rts.ip_blacklist.load()
         atexit.register(self.at_exit)
         signal.signal(signal.SIGTERM, self.signal_handler)
@@ -104,7 +104,6 @@ class MinWaf:
     def at_exit(self) -> None:
         logger = logging.getLogger("min.waf")
         self.lockfile_remove()
-        IpTables.clear(self.config)
         if self.config.config.getboolean("dev", "profiling"):
             yappi.stop()
             yappi.get_func_stats().save("/tmp/min.waf.fun.kgrind", type="callgrind")
@@ -137,18 +136,9 @@ class MinWaf:
         config: Config,
         rts: RunTimeStats
     ) -> None:
-        if config.config.get('main', 'ban_method') == 'iptables':
-            IpTables.unban_expired(config, rts)
-            return
-        # both ban methods expire on main.ban_time
+        # the kernel expires the ipset entries itself; this only forgets them
         ban_duration = config.config.getint('main', 'ban_time')
         current_time = time.time()
         with rts._banned_ips_lock:
-            ips_to_unban = [
-                ip for ip, ban_time in rts.banned_ips.items()
-                if (current_time - ban_time) > ban_duration
-            ]
-        for ip in ips_to_unban:
-            with rts._banned_ips_lock:
-                if ip in rts.banned_ips:
-                    del rts.banned_ips[ip]
+            for ip in [ip for ip, ban_time in rts.banned_ips.items() if (current_time - ban_time) > ban_duration]:
+                del rts.banned_ips[ip]

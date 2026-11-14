@@ -11,7 +11,7 @@ from typing import Callable
 from classes.Checks import Checks
 from classes.Config import Config
 from classes.HttpHeaders import HttpHeaders
-from classes.IpTables import IpTables
+from classes.IpSet import IpSet
 from classes.RequestInspector import RequestInspector
 from classes.ResponseInspector import ResponseInspector
 from classes.RunTimeStats import RunTimeStats
@@ -287,46 +287,6 @@ class Proxy:
         finally:
             sock.close()
 
-    def only_read(
-        self,
-        httpHeaders: HttpHeaders,
-        frontend_socket: socket.socket,
-        frontend_buffer: bytes,
-        request_whole: bytes
-    ) -> None:
-        max_inspect_size = self.config.config.getint("main", "max_inspect_size")
-        with select.epoll() as p:
-            p.register(frontend_socket, select.POLLIN)
-            bail: float = time.time() + 1  # do not waste much time, we know it is bad request, we only want to log it
-            while True:
-                if time.time() > bail:
-                    frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
-                    frontend_socket.close()
-                    break
-                if frontend_socket.fileno() == -1:
-                    break
-                events = p.poll(1)  # Returns list of (fd, event_type) tuples
-                for fd, event in events:
-                    if event & select.POLLIN:
-                        if fd == frontend_socket.fileno():
-                            data = frontend_socket.recv(Proxy.buffer_size)
-                            if not data:
-                                frontend_socket.close()
-                                break
-                            frontend_buffer += data
-                            if len(request_whole) < max_inspect_size:
-                                request_whole += data
-                                if len(request_whole) >= max_inspect_size:
-                                    self.log(httpHeaders, request_whole)
-                                    frontend_socket.sendall(b'HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n')
-                                    frontend_socket.close()
-                                    break
-                    if event & (select.POLLHUP | select.POLLERR):
-                        if fd == frontend_socket.fileno():
-                            frontend_socket.close()
-        if len(request_whole) < max_inspect_size:
-            self.log(httpHeaders, request_whole)
-
     def parse_headers(self, frontend_socket: socket.socket, buffer: bytes) -> HttpHeaders:
         buffer_decoded = buffer.decode(errors='ignore')
         host: str = ''
@@ -474,24 +434,21 @@ class Proxy:
             if not inspector.feed(request_whole):
                 forward = False
                 self.ban(str(httpHeaders.ip), self.rts, self.config, httpHeaders.ban_reason)
-            if not forward and not self.config.mode_honeypot:
+            if not forward:
                 return
-            if forward:
-                frontend_buffer = Proxy.close_after_response(frontend_buffer)
-                upstream_socket = self.connect_upstream(httpHeaders)
-                if not upstream_socket or upstream_socket.fileno() == -1:
-                    return
-                self.forward(
-                    httpHeaders,
-                    frontend_socket,
-                    frontend_buffer,
-                    upstream_socket,
-                    upstream_buffer,
-                    request_whole,
-                    inspector
-                )
-            elif self.config.mode_honeypot:
-                self.only_read(httpHeaders, frontend_socket, frontend_buffer, request_whole)
+            frontend_buffer = Proxy.close_after_response(frontend_buffer)
+            upstream_socket = self.connect_upstream(httpHeaders)
+            if not upstream_socket or upstream_socket.fileno() == -1:
+                return
+            self.forward(
+                httpHeaders,
+                frontend_socket,
+                frontend_buffer,
+                upstream_socket,
+                upstream_buffer,
+                request_whole,
+                inspector
+            )
             return
         except OSError as exc:
             logging.getLogger("min.waf").debug("Connection %s closed: %s", addr, exc)
@@ -516,12 +473,7 @@ class Proxy:
             return
         with rts._counters_lock:
             rts.bans += 1
-        if config.config.get('main', 'ban_method') == 'iptables':
-            new_ban = IpTables.ban(ip, rts, config)
-        else:
-            with rts._banned_ips_lock:
-                new_ban = ip not in rts.banned_ips
-                rts.banned_ips[ip] = time.time()
+        new_ban = IpSet.ban(ip, rts, config)
         if new_ban and config.config.getboolean("log", "bans"):
             logging.getLogger("min.waf").info("%s banned; %s", ip, reason or "request rejected")
 

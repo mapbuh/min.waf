@@ -1,8 +1,8 @@
 # One min.waf instance per port, all reading /etc/min.waf.conf.
 # The instance name is the port:
 #   systemctl enable --now min.waf@9009 min.waf@9010
-# Each instance gets its own pid file (/run/min.waf-<port>.pid)
-# and iptables chain (MINWAF-<port>).
+# Each instance gets its own pid file (/run/min.waf-<port>.pid);
+# all of them share the ipset that holds the bans.
 [Unit]
 Description=min.waf Service on port %i
 After=network.target iptables.service firewalld.service ip6tables.service ipset.service nftables.service

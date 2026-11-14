@@ -59,8 +59,6 @@ def test_proxy_handle_client_basic(proxy: Proxy, monkeypatch: pytest.MonkeyPatch
 
 @pytest.mark.parametrize("headers_clean, content_clean", [(False, True), (True, False)])
 def test_proxy_handle_client_ban(proxy: Proxy, monkeypatch: pytest.MonkeyPatch, headers_clean, content_clean):
-    # Monkeypatch mode_honeypot property to always return False
-    monkeypatch.setattr(type(proxy.config), "mode_honeypot", property(lambda self: False))
     ban = MagicMock()
     connect_upstream = MagicMock()
     monkeypatch.setattr("classes.Proxy.Checks.headers", lambda *a, **kw: headers_clean)
@@ -73,7 +71,7 @@ def test_proxy_handle_client_ban(proxy: Proxy, monkeypatch: pytest.MonkeyPatch, 
     ban.assert_called_once()
     assert ban.call_args.args[0] == "127.0.0.1"
     connect_upstream.assert_not_called()
-    assert dummy_socket.closed  # Should close if not forward and not honeypot
+    assert dummy_socket.closed  # a rejected request is closed without forwarding
 
 
 def test_parse_headers_complex():
